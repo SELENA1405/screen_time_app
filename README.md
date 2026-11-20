@@ -58,9 +58,8 @@ streamlit run app.py
 app.py              Home page
 utils.py            Data loading, ordering constants, statistics and chart helpers
 pages/              One file per dashboard page
-Data/Data.xlsx      Cleaned survey data (sheet: Data_Visu_Ready)
+Data/Screen_Time_Data.xlsx        Survey data with screenshot links removed
+                                  - OgData_Screenshot_Removed: original form responses
+                                  - CleanedData_Screenshot_Removed: cleaned data used by the app
 Data/screen_time_validation.csv   Typed vs screenshot screen time for 49 respondents (no personal links)
 ```
-
-> Before publishing, make sure the `screen_shot` links in the `Original_Data_Mix` sheet of
-> `Data.xlsx` do not point to personal screenshots, or remove that sheet/column.

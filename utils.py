@@ -10,8 +10,8 @@ from scipy import stats
 
 # Resolve the data file relative to this file, so the app works no matter
 # which folder `streamlit run` is started from.
-DATA_PATH = Path(__file__).resolve().parent / "Data" / "Data.xlsx"
-SHEET_NAME = "Data_Visu_Ready"
+DATA_PATH = Path(__file__).resolve().parent / "Data" / "Screen_Time_Data.xlsx"
+SHEET_NAME = "CleanedData_Screenshot_Removed"
 
 # --- Shared category orderings, used across pages so ordering stays consistent.
 STUDY_HOURS_ORDER = ["Less than 1 hr", "1-2 hrs", "2-3 hrs", "More than 3 hrs"]
