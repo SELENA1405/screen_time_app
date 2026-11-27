@@ -2,23 +2,45 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from utils import load_data, HIGH_SCREEN_TIME_HOURS, DATA_PATH
+from utils import (
+    load_data, load_raw_data, collection_period, HIGH_SCREEN_TIME_HOURS, DATA_PATH,
+    SHEET_NAME, RAW_SHEET_NAME,
+)
 
 st.title("Dataset & Methodology Dashboard")
 
 df = load_data()
+raw = load_raw_data()
+
+# Raw survey columns are named "<number>. <question>"; index them by number.
+Q = {c.split(".")[0].strip(): c for c in raw.columns if c.split(".")[0].strip().isdigit()}
+DERIVED = ["study_code", "sleep_code"]  # added by the app in utils.load_data
+n_clean_cols = len(df.columns) - len(DERIVED)
 
 st.subheader("Dataset Overview")
-st.write(
-    f"The dataset contains **{len(df)} rows and {len(df.columns)} columns** after data "
-    "cleaning (including a few columns derived during analysis). The original survey had "
-    "150 responses; 129 were retained for the final analysis."
+c1, c2, c3 = st.columns(3)
+c1.metric("Survey responses (raw)", len(raw))
+c2.metric("Kept after cleaning", len(df))
+c3.metric("Removed during cleaning", len(raw) - len(df))
+st.markdown(
+    f"""
+The data file `{DATA_PATH.name}` has two sheets:
+
+- **Raw survey responses** (`{RAW_SHEET_NAME}`): {len(raw)} responses exactly as submitted,
+  with a timestamp and {len(Q)} survey questions. The screenshot upload question (Q7) has been
+  removed to protect respondents' privacy.
+- **Cleaned data** (`{SHEET_NAME}`): the {len(df)} responses kept for analysis, in
+  {n_clean_cols} columns. Every page of this dashboard uses this sheet. The app adds
+  {len(DERIVED)} more columns ({", ".join(DERIVED)}) when it loads the data.
+
+Both sheets can be viewed and downloaded at the bottom of this page.
+"""
 )
 
 st.subheader("Data Collection Method")
 st.write(
-    "The data was collected through a student survey conducted over a 7-day period "
-    "among Siam University students. The survey captured demographic characteristics, "
+    "The data was collected through an online survey of Siam University students. "
+    "The survey captured demographic characteristics, "
     "screen-time behavior, academic performance, study habits, sleep patterns, and "
     "digital distractions. Screen-time values were supported by screenshots where "
     "available, and each response was labelled **Verified** (a screenshot was provided) "
@@ -32,9 +54,11 @@ st.write(
 )
 
 st.subheader("Collection Period")
+ts = pd.to_datetime(raw["Timestamp"], errors="coerce").dropna()
+first_week = (ts < ts.min().normalize() + pd.Timedelta(days=7)).mean()
 st.write(
-    "Data collection was conducted over a 7-day period, during which students were "
-    "invited to complete the survey."
+    f"Responses were submitted between **{collection_period(raw)}**. "
+    f"{first_week:.0%} of them arrived within the first 7 days."
 )
 
 # ----------------------------------------------------------------------------
@@ -46,18 +70,40 @@ c2.metric("Unverified (self-reported only)", int(conf.get("Unverified", 0)))
 
 # ----------------------------------------------------------------------------
 st.subheader("Data Cleaning")
-st.markdown(
-    """
-The raw survey export contained 150 responses. Questions were free text for age, CGPA and
-screen time, so the answers needed cleaning before analysis:
 
-1. **Free-text answers were converted to numbers**: for example "9h 40m" became 9.67 hours.
-2. **Responses with unusable values were removed**, leaving 129. The cleaned data contains no
-   CGPA above 4.0, no screen time above 24 hours a day, and no non-numeric answers.
-3. **Majors were standardised** and grouped into broader major categories.
+# Problems visible in the raw answers, counted directly from the raw sheet.
+cgpa_num = pd.to_numeric(raw[Q["13"]], errors="coerce")
+n_cgpa_text = int(cgpa_num.isna().sum())
+n_cgpa_high = int((cgpa_num > 4).sum())
+screen_txt = raw[Q["6"]].astype("string").str.strip()
+n_screen_blank = int((~screen_txt.str.contains(r"\d", na=False)).sum())
+n_age_text = int(pd.to_numeric(raw[Q["2"]], errors="coerce").isna().sum())
+n_major_spellings = raw[Q["4"]].astype("string").str.strip().nunique()
+
+st.markdown(
+    f"""
+Age, CGPA, major and screen time were typed as free text, so the raw answers needed cleaning
+before analysis. In the raw data:
+
+- **{n_cgpa_text}** CGPA answers are not numbers (for example "-", "idk" or "Not yet"), and
+  **{n_cgpa_high}** {'is' if n_cgpa_high == 1 else 'are'} above the 4.0 maximum.
+- **{n_screen_blank}** screen-time answers contain no number at all, and others are written in many
+  formats ("7h 46m", "around 5h", "6-7 h.").
+- **{n_age_text}** age answer{'' if n_age_text == 1 else 's'} {'is' if n_age_text == 1 else 'are'} not a number.
+- The major question has **{n_major_spellings}** different spellings.
+
+The cleaning steps were:
+
+1. **Responses that could not be used were removed**: {len(raw)} responses became {len(df)}
+   ({len(raw) - len(df)} removed). The cleaned data contains no CGPA above 4.0, no screen time
+   above 24 hours a day, and no non-numeric answers.
+2. **Free-text answers were converted to numbers**: for example "7h 46m" became 7.77 hours.
+3. **Majors were standardised** into {df["major"].nunique()} majors and grouped into
+   {df["major_category"].nunique()} broader categories.
 4. **Screenshots were used to check screen time.** Where a respondent uploaded a screenshot of
    their weekly screen-time report, the daily average from the screenshot replaced their typed
-   answer and the response was labelled **Verified**.
+   answer and the response was labelled **Verified**. The screenshot links have since been
+   removed from both sheets.
 """
 )
 st.caption(
@@ -84,7 +130,7 @@ if VALIDATION_PATH.exists():
     c2.metric("Within 1 hour", f"{(daily['error'].abs() <= 1).mean():.0%}",
               help="Share of daily-range answers within one hour of the screenshot")
     c3.metric("Rank correlation", f"{rho:.2f}")
-    c4.metric("Weekly-sized answers (>24h)", len(weekly_sized))
+    c4.metric("Weekly totals typed", len(weekly_sized), help="Answers above 24 hours, i.e. a weekly total")
 
     fig = px.scatter(
         daily, x="screenshot_hours", y="reported_hours", hover_data=["reported_text"],
@@ -108,32 +154,45 @@ if VALIDATION_PATH.exists():
 
 # ----------------------------------------------------------------------------
 st.subheader("Data Dictionary")
+st.write("Columns of the cleaned data, and the survey question each one comes from.")
+
+
+def question(n):
+    """Survey question text for question number n, as worded in the raw data."""
+    col = Q.get(str(n))
+    return f"Q{n}. " + " ".join(col.split(".", 1)[1].split()) if col else ""
+
+
 dictionary = pd.DataFrame(
     [
-        ("gender", "Self-reported gender (Male / Female / Other)"),
-        ("age", "Age in years"),
-        ("year", "Academic year (Year 1 to Year 4)"),
-        ("major", "Student's major as reported"),
-        ("major_category", "Majors grouped into broader categories (derived)"),
-        ("monthly_allowance", "Monthly allowance band"),
-        ("screen_time_hours / screen_time_minutes", "Reported daily screen time, split into hours and minutes"),
-        ("avg_screen_time_hours", "Daily screen time in hours (hours + minutes / 60)"),
-        ("Screen_Time_Confidence", "Verified if a screenshot was provided, otherwise Unverified"),
-        ("main_use", "Main use of screen time"),
-        ("peak_time", "Time of day with the most screen use"),
-        ("check_phone_during_study", "How often the student checks their phone while studying (1 = Never to 5 = Very Often)"),
-        ("phone_during_lectures", "How often the student uses their phone in lectures (1 to 5)"),
-        ("hard_to_reduce_screen_time", "How hard it is to reduce screen time (1 to 5)"),
-        ("cgpa", "Cumulative grade point average (4.0 scale)"),
-        ("sleep_hours", "Typical nightly sleep, in bands"),
-        ("academic_performance", "Self-rated academic performance (1 to 5)"),
-        ("study_hours_outside_class", "Daily study time outside class, in bands"),
-        ("digital_distraction", "Self-rated digital distraction (1 to 5)"),
-        ("study_code / sleep_code", "Ordinal codes (0 = lowest band) for study and sleep bands (derived)"),
+        ("gender", "Self-reported gender (Male / Female / Other)", question(1)),
+        ("age", "Age in years", question(2)),
+        ("year", "Academic year (Year 1 to Year 4)", question(3)),
+        ("major", "Major, standardised from the typed answer", question(4)),
+        ("major_category", "Majors grouped into broader categories", "Derived from major"),
+        ("monthly_allowance", "Monthly allowance band (THB)", question(5)),
+        ("avg_screen_time_hours", "Average daily screen time in hours (from the screenshot if verified)",
+         question(6)),
+        ("hour (h) / minnutes (m)", "avg_screen_time_hours split into whole hours and minutes",
+         "Derived from avg_screen_time_hours"),
+        ("Screen_Time_Confidence", "Verified if a screenshot was provided, otherwise Unverified",
+         "Q7. Screenshot upload (removed for privacy)"),
+        ("main_use", "Main use of screen time", question(8)),
+        ("peak_time", "Time of day with the most screen use", question(9)),
+        ("check_phone_during_study", "1 = Never to 5 = Very Often", question(10)),
+        ("phone_during_lectures", "1 = Never to 5 = Very Often", question(11)),
+        ("hard_to_reduce_screen_time", "1 = Never to 5 = Very Often", question(12)),
+        ("cgpa", "Cumulative grade point average (4.0 scale)", question(13)),
+        ("sleep_hours", "Typical nightly sleep, in bands", question(14)),
+        ("academic_performance", "Self-rated academic performance (1 to 5)", question(15)),
+        ("study_hours_outside_class", "Daily study time outside class, in bands", question(16)),
+        ("digital_distraction", "Self-rated digital distraction (1 to 5)", question(17)),
+        ("study_code / sleep_code", "Ordinal codes (0 = lowest band) for study and sleep bands",
+         "Added by the app"),
     ],
-    columns=["Column", "Description"],
+    columns=["Column", "Description", "Source"],
 )
-st.dataframe(dictionary, width="stretch", hide_index=True)
+st.table(dictionary.set_index("Column"))
 
 # ----------------------------------------------------------------------------
 st.subheader("Limitations")
@@ -166,5 +225,30 @@ st.markdown(
 """
 )
 
-st.subheader("Dataset Preview")
-st.dataframe(df, width="stretch")
+# ----------------------------------------------------------------------------
+st.subheader("View the Data")
+tab_clean, tab_raw = st.tabs([f"Cleaned data ({len(df)} rows)", f"Raw survey responses ({len(raw)} rows)"])
+
+with tab_clean:
+    st.caption("The data used by every page, including the columns the app adds.")
+    st.dataframe(df, width="stretch")
+    st.download_button(
+        "Download cleaned data (CSV)", df.to_csv(index=False).encode("utf-8-sig"),
+        file_name="screen_time_cleaned.csv", mime="text/csv",
+    )
+
+with tab_raw:
+    st.caption(
+        "Responses exactly as submitted, before any cleaning. The screenshot upload "
+        "question (Q7) has been removed to protect respondents' privacy."
+    )
+    raw_view = raw.rename(columns=lambda c: " ".join(str(c).split()))
+    # Free-text columns mix numbers and text (e.g. CGPA "3.5" and "idk"); show them as text.
+    for col in raw_view.columns:
+        if raw_view[col].dtype == object:
+            raw_view[col] = raw_view[col].astype("string")
+    st.dataframe(raw_view, width="stretch")
+    st.download_button(
+        "Download raw responses (CSV)", raw_view.to_csv(index=False).encode("utf-8-sig"),
+        file_name="screen_time_raw.csv", mime="text/csv",
+    )

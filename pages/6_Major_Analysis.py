@@ -21,7 +21,7 @@ st.write(
 st.header("Major Overview")
 
 counts = df["major_category"].value_counts()
-col1, col2, col3 = st.columns(3)
+col1, col2, col3 = st.columns([1, 2, 1])
 col1.metric("Major Categories", df["major_category"].nunique())
 col2.metric("Largest Major Category", counts.idxmax())
 col3.metric("Participants", len(df))

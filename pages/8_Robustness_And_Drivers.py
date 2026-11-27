@@ -1,9 +1,9 @@
-import pandas as pd
 import plotly.express as px
 import streamlit as st
 
 from utils import (
-    load_data, spearman, ols_table, HIGH_SCREEN_TIME_HOURS, VARIABLE_LABELS,
+    load_data, robustness_table, cgpa_drivers, cgpa_regression,
+    DRIVER_VARIABLES, VARIABLE_LABELS,
 )
 
 st.title("Robustness & Drivers")
@@ -25,20 +25,7 @@ st.write(
     "subsets of the data that exclude the least trustworthy responses."
 )
 
-verified = df["Screen_Time_Confidence"] == "Verified"
-plausible = df["avg_screen_time_hours"] < HIGH_SCREEN_TIME_HOURS
-scenarios = {
-    "All respondents": df,
-    "Verified screen time only": df[verified],
-    f"Excluding {HIGH_SCREEN_TIME_HOURS}+ hrs/day": df[plausible],
-    f"Verified and under {HIGH_SCREEN_TIME_HOURS} hrs/day": df[verified & plausible],
-}
-
-rows = []
-for name, subset in scenarios.items():
-    rho, p, n = spearman(subset, "avg_screen_time_hours", "cgpa")
-    rows.append({"Subset": name, "n": n, "ρ": rho, "p-value": p, "Significant (p < 0.05)": p < 0.05})
-robust = pd.DataFrame(rows)
+robust = robustness_table(df)
 
 st.dataframe(
     robust.style.format({"ρ": "{:.2f}", "p-value": "{:.3f}"}),
@@ -68,11 +55,7 @@ else:
 st.divider()
 st.header("2. Which factors are most associated with CGPA?")
 
-variables = [
-    "avg_screen_time_hours", "study_code", "sleep_code", "check_phone_during_study",
-    "phone_during_lectures", "hard_to_reduce_screen_time", "digital_distraction",
-    "academic_performance", "age", "cgpa",
-]
+variables = DRIVER_VARIABLES
 nice = [VARIABLE_LABELS[v] for v in variables]
 corr = df[variables].corr(method="spearman")
 corr.index = nice
@@ -86,18 +69,8 @@ fig.update_layout(height=650)
 st.plotly_chart(fig, width="stretch")
 st.caption("Study and sleep are ordered bands (0 = lowest) so they can be ranked.")
 
-predictors = [v for v in variables if v != "cgpa"]
-drivers = []
-for v in predictors:
-    rho, p, n = spearman(df, v, "cgpa")
-    drivers.append({"Factor": VARIABLE_LABELS[v], "ρ with CGPA": rho, "p-value": p})
-drivers = pd.DataFrame(drivers)
-drivers["|ρ|"] = drivers["ρ with CGPA"].abs()
-drivers = drivers.sort_values("|ρ|", ascending=False).drop(columns="|ρ|").reset_index(drop=True)
-
+drivers = cgpa_drivers(df).drop(columns="Variable")
 alpha_adj = 0.05 / len(drivers)
-drivers["Significant (p < 0.05)"] = drivers["p-value"] < 0.05
-drivers[f"Significant after Bonferroni (p < {alpha_adj:.4f})"] = drivers["p-value"] < alpha_adj
 
 st.subheader("Factors ranked by strength of association with CGPA")
 st.dataframe(
@@ -134,20 +107,7 @@ st.write(
     "variable (Year 1; Business & Management)."
 )
 
-reg_df = df[df["major_category"] != "Other"]
-table, summary = ols_table(
-    reg_df, "cgpa",
-    numeric=["avg_screen_time_hours", "study_code", "sleep_code", "digital_distraction", "age"],
-    categorical=["year", "major_category"],
-)
-nice_terms = {
-    "avg_screen_time_hours": "Screen time (per extra hour/day)",
-    "study_code": "Study hours (per band up)",
-    "sleep_code": "Sleep (per band up)",
-    "digital_distraction": "Digital distraction (per point)",
-    "age": "Age (per year)",
-}
-table["Term"] = table["Term"].replace(nice_terms)
+table, summary = cgpa_regression(df)
 
 c1, c2, c3 = st.columns(3)
 c1.metric("Respondents used", summary["n"])

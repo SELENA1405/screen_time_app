@@ -24,13 +24,13 @@ Originally a group project; rebuilt and extended independently as a solo portfol
 
 | Page | Content |
 |---|---|
-| Home | Headline findings (computed from the data) and research questions |
+| Home | Summary of findings, with an answer to each research question (computed from the data) |
 | Demographics | Sample profile: gender, age, year, major, allowance |
 | Screen Time | Usage patterns, phone habits, group comparisons with 95% CIs |
 | Academic Performance | CGPA distribution, study and sleep habits |
 | Relationships | Spearman correlations with a verified-only toggle |
 | Major Analysis | Group comparisons with Kruskal-Wallis tests |
-| Dataset & Methodology | Data collection, data dictionary, limitations |
+| Dataset & Methodology | Data collection, cleaning (150 → 129 responses), data dictionary, limitations, raw and cleaned data with CSV downloads |
 | Robustness & Drivers | Sensitivity checks, correlation heatmap, multiple regression |
 
 ## Methods
@@ -57,11 +57,12 @@ streamlit run app.py
 ## Project structure
 
 ```
-app.py              Home page
+app.py              Entry point: sidebar navigation (run this file)
+home.py             Home page: summary of findings and answers to the research questions
 utils.py            Data loading, ordering constants, statistics and chart helpers
 pages/              One file per dashboard page
 Data/Screen_Time_Data.xlsx        Survey data with screenshot links removed
-                                  - OgData_Screenshot_Removed: original form responses
-                                  - CleanedData_Screenshot_Removed: cleaned data used by the app
+                                  - OgData_Screenshot_Removed: 150 raw survey responses
+                                  - CleanedData_Screenshot_Removed: 129 cleaned rows used by the app
 Data/screen_time_validation.csv   Typed vs screenshot screen time for 49 respondents (no personal links)
 ```

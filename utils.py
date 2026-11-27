@@ -12,6 +12,7 @@ from scipy import stats
 # which folder `streamlit run` is started from.
 DATA_PATH = Path(__file__).resolve().parent / "Data" / "Screen_Time_Data.xlsx"
 SHEET_NAME = "CleanedData_Screenshot_Removed"
+RAW_SHEET_NAME = "OgData_Screenshot_Removed"
 
 # --- Shared category orderings, used across pages so ordering stays consistent.
 STUDY_HOURS_ORDER = ["Less than 1 hr", "1-2 hrs", "2-3 hrs", "More than 3 hrs"]
@@ -62,6 +63,25 @@ def load_data(path: Path = DATA_PATH, sheet_name: str = SHEET_NAME) -> pd.DataFr
         {v: i for i, v in enumerate(SLEEP_HOURS_ORDER)}
     )
     return df
+
+
+@st.cache_data
+def load_raw_data(path: Path = DATA_PATH, sheet_name: str = RAW_SHEET_NAME) -> pd.DataFrame:
+    """Load the raw survey export exactly as submitted (screenshot question removed)."""
+    return pd.read_excel(path, sheet_name=sheet_name)
+
+
+def collection_period(raw: pd.DataFrame) -> str:
+    """Date range of the survey responses, e.g. '16–24 March 2026'."""
+    ts = pd.to_datetime(raw["Timestamp"], errors="coerce").dropna()
+    a, b = ts.min(), ts.max()
+    if (a.year, a.month) == (b.year, b.month):
+        return f"{a.day}–{b.day} {b:%B %Y}"
+    return f"{a.day} {a:%B} – {b.day} {b:%B %Y}"
+
+
+def fmt_p(p: float) -> str:
+    return "p < 0.001" if p < 0.001 else f"p = {p:.3f}"
 
 
 # ----------------------------------------------------------------------------
@@ -160,6 +180,71 @@ def ols_table(df: pd.DataFrame, y: str, numeric: list, categorical: list):
     })
     summary = {"n": n, "r2": float(r2), "adj_r2": float(adj_r2),
                "f_p": float(f_p)}
+    return table, summary
+
+
+# ----------------------------------------------------------------------------
+# Shared analyses (used by both the Home page and Robustness & Drivers, so the
+# summary on Home always matches the detailed page).
+# ----------------------------------------------------------------------------
+# Factors compared with CGPA; CGPA itself is last so it can be used in a matrix.
+DRIVER_VARIABLES = [
+    "avg_screen_time_hours", "study_code", "sleep_code", "check_phone_during_study",
+    "phone_during_lectures", "hard_to_reduce_screen_time", "digital_distraction",
+    "academic_performance", "age", "cgpa",
+]
+
+REGRESSION_TERM_LABELS = {
+    "avg_screen_time_hours": "Screen time (per extra hour/day)",
+    "study_code": "Study hours (per band up)",
+    "sleep_code": "Sleep (per band up)",
+    "digital_distraction": "Digital distraction (per point)",
+    "age": "Age (per year)",
+}
+
+
+def robustness_table(df: pd.DataFrame) -> pd.DataFrame:
+    """Screen time vs CGPA (Spearman) repeated on progressively stricter subsets."""
+    verified = df["Screen_Time_Confidence"] == "Verified"
+    plausible = df["avg_screen_time_hours"] < HIGH_SCREEN_TIME_HOURS
+    scenarios = {
+        "All respondents": df,
+        "Verified screen time only": df[verified],
+        f"Excluding {HIGH_SCREEN_TIME_HOURS}+ hrs/day": df[plausible],
+        f"Verified and under {HIGH_SCREEN_TIME_HOURS} hrs/day": df[verified & plausible],
+    }
+    rows = []
+    for name, subset in scenarios.items():
+        rho, p, n = spearman(subset, "avg_screen_time_hours", "cgpa")
+        rows.append({"Subset": name, "n": n, "ρ": rho, "p-value": p,
+                     "Significant (p < 0.05)": p < 0.05})
+    return pd.DataFrame(rows)
+
+
+def cgpa_drivers(df: pd.DataFrame) -> pd.DataFrame:
+    """Spearman correlation of each factor with CGPA, strongest first."""
+    rows = []
+    for v in DRIVER_VARIABLES[:-1]:
+        rho, p, n = spearman(df, v, "cgpa")
+        rows.append({"Variable": v, "Factor": VARIABLE_LABELS[v], "ρ with CGPA": rho, "p-value": p})
+    drivers = pd.DataFrame(rows)
+    drivers = drivers.reindex(drivers["ρ with CGPA"].abs().sort_values(ascending=False).index)
+    drivers = drivers.reset_index(drop=True)
+    alpha_adj = 0.05 / len(drivers)
+    drivers["Significant (p < 0.05)"] = drivers["p-value"] < 0.05
+    drivers[f"Significant after Bonferroni (p < {alpha_adj:.4f})"] = drivers["p-value"] < alpha_adj
+    return drivers
+
+
+def cgpa_regression(df: pd.DataFrame):
+    """OLS of CGPA on habits, age, year and major category ('Other' major excluded)."""
+    reg_df = df[df["major_category"] != "Other"]
+    table, summary = ols_table(
+        reg_df, "cgpa",
+        numeric=["avg_screen_time_hours", "study_code", "sleep_code", "digital_distraction", "age"],
+        categorical=["year", "major_category"],
+    )
+    table["Term"] = table["Term"].replace(REGRESSION_TERM_LABELS)
     return table, summary
 
 
