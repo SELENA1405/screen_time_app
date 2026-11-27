@@ -14,7 +14,8 @@ df = load_data()
 
 USE_NAMES = {"Game": "gaming", "Social Media": "social media",
              "Streaming (Netflix, YouTube)": "streaming (Netflix, YouTube)",
-             "Studying/Academic work": "studying or academic work"}
+             "Studying/Academic work": "studying or academic work",
+             "Study & work": "study or work"}
 
 
 def use_name(use):
@@ -55,6 +56,11 @@ verified_only = st.checkbox(
 if verified_only:
     df = df[df["Screen_Time_Confidence"] == "Verified"]
 
+# Studying/academic work and work have too few students to test on their own,
+# so they are combined into one "Study & work" group for the main-use analysis.
+COMBINED = {"Studying/Academic work": "Study & work", "Work": "Study & work"}
+df = df.assign(use_group=df["main_use"].replace(COMBINED))
+
 PAIRS = [
     ("avg_screen_time_hours", "cgpa", "Screen Time vs CGPA",
      "Is average daily screen time associated with participants' CGPA?",
@@ -86,7 +92,7 @@ for _, row in summary.iterrows():
     else:
         points.append(f"**{row['Relationship']}:** no significant relationship "
                       f"(r = {row['r']:.2f}, {fmt_p(row['p-value'])}).")
-by_use = main_use_correlations(df)
+by_use = main_use_correlations(df, "use_group")
 if len(by_use):
     strongest = by_use.loc[by_use["r"].abs().idxmax()]
     if by_use["Significant (p < 0.05)"].any():
@@ -122,8 +128,9 @@ st.header("Screen time and CGPA by main use")
 st.caption(
     "The survey asked for total daily screen time and each student's **main** use of it, not hours "
     "per app. So this compares students by what they mainly use screens for: for example, among "
-    "students who mainly use social media, do those with more screen time have a lower CGPA? Groups "
-    "with fewer than 5 students are left out."
+    "students who mainly use social media, do those with more screen time have a lower CGPA? Students "
+    "whose main use is studying/academic work and work are combined into one **Study & work** group "
+    "so it is large enough to test. Groups with fewer than 5 students are left out."
 )
 
 if by_use.empty:
@@ -141,17 +148,17 @@ else:
     tabs = st.tabs(["All groups together", "One group in detail", "CGPA by main use"])
 
     with tabs[0]:
-        d = df[df["main_use"].isin(uses)].dropna(subset=["avg_screen_time_hours", "cgpa"])
+        d = df[df["use_group"].isin(uses)].dropna(subset=["avg_screen_time_hours", "cgpa"])
         fig = px.scatter(
-            d, x="avg_screen_time_hours", y="cgpa", color="main_use", opacity=0.7,
-            category_orders={"main_use": uses},
+            d, x="avg_screen_time_hours", y="cgpa", color="use_group", opacity=0.7,
+            category_orders={"use_group": uses},
             title="Screen Time vs CGPA, by Main Use",
             labels={"avg_screen_time_hours": "Average Screen Time (Hours)", "cgpa": "CGPA",
-                    "main_use": "Main Use"},
+                    "use_group": "Main Use"},
         )
         colors = {t.name: t.marker.color for t in fig.data}
         for use in uses:
-            g = d[d["main_use"] == use]
+            g = d[d["use_group"] == use]
             slope, intercept = np.polyfit(g["avg_screen_time_hours"], g["cgpa"], 1)
             xs = np.array([g["avg_screen_time_hours"].min(), g["avg_screen_time_hours"].max()])
             fig.add_scatter(x=xs, y=slope * xs + intercept, mode="lines", showlegend=False,
@@ -163,7 +170,7 @@ else:
 
     with tabs[1]:
         use = st.selectbox("Main use", uses)
-        g = df[df["main_use"] == use]
+        g = df[df["use_group"] == use]
         row = by_use[by_use["Main use"] == use].iloc[0]
         hl = heavy_vs_light(g)
         c1, c2, c3 = st.columns(3)
@@ -180,6 +187,13 @@ else:
         c5.metric(f"Avg CGPA, {hl['median']:.1f} hrs or less", f"{hl['light_mean']:.2f}",
                   help=f"n = {hl['n_light']}")
         c6.metric("t-test p-value", f"{hl['p']:.3f}", help="Two-sample t-test, not assuming equal variances")
+        if min(hl["n_heavy"], hl["n_light"]) < 5:
+            st.warning(
+                f"Only {hl['n_heavy']} and {hl['n_light']} students are in the two halves, so this "
+                "comparison is very unreliable. Treat it as a description, not a test result."
+            )
+        if int(row["Verified"]) == 0:
+            st.caption("None of these students supplied a screenshot, so their screen time is self-reported.")
         diff = hl["heavy_mean"] - hl["light_mean"]
         st.info(
             f"Among students who mainly use screens for {use_name(use)}, heavier users have an average CGPA "
@@ -191,11 +205,11 @@ else:
 
     with tabs[2]:
         st.plotly_chart(
-            group_box_plot(df[df["main_use"].isin(uses)], "main_use", "cgpa", "CGPA by Main Use",
-                           labels={"cgpa": "CGPA", "main_use": "Main Use"}, sort_by_median=True),
+            group_box_plot(df[df["use_group"].isin(uses)], "use_group", "cgpa", "CGPA by Main Use",
+                           labels={"cgpa": "CGPA", "use_group": "Main Use"}, sort_by_median=True),
             width="stretch",
         )
-        st.caption(describe_anova(anova_test(df, "main_use", "cgpa"), "average CGPA", "main-use groups"))
+        st.caption(describe_anova(anova_test(df, "use_group", "cgpa"), "average CGPA", "main-use groups"))
 
     sig = by_use[by_use["Significant (p < 0.05)"]]
     strongest = by_use.loc[by_use["r"].abs().idxmax()]

@@ -262,11 +262,11 @@ def cgpa_regression(df: pd.DataFrame):
     return table, summary
 
 
-def main_use_correlations(df: pd.DataFrame, min_n: int = 5) -> pd.DataFrame:
+def main_use_correlations(df: pd.DataFrame, group_col: str = "main_use", min_n: int = 5) -> pd.DataFrame:
     """Screen time vs CGPA (Pearson) within each main-use group with at least
     `min_n` students, also repeated without the 14+ hrs/day answers."""
     rows = []
-    for use, g in df.dropna(subset=["avg_screen_time_hours", "cgpa"]).groupby("main_use"):
+    for use, g in df.dropna(subset=["avg_screen_time_hours", "cgpa"]).groupby(group_col):
         if len(g) < min_n:
             continue
         r, p, n = pearson(g, "avg_screen_time_hours", "cgpa")
@@ -275,6 +275,7 @@ def main_use_correlations(df: pd.DataFrame, min_n: int = 5) -> pd.DataFrame:
                   if len(trimmed) >= min_n else (np.nan, np.nan))
         rows.append({
             "Main use": use, "n": n,
+            "Verified": int((g["Screen_Time_Confidence"] == "Verified").sum()),
             "Avg screen time (hrs)": g["avg_screen_time_hours"].mean(),
             "Avg CGPA": g["cgpa"].mean(),
             "r": r, "p-value": p, "Significant (p < 0.05)": p < ALPHA,
