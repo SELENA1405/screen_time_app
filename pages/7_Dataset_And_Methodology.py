@@ -119,7 +119,7 @@ if VALIDATION_PATH.exists():
     weekly_sized = val[val["reported_hours"] > 24]
     daily = val[val["reported_hours"] <= 24].copy()
     daily["error"] = daily["reported_hours"] - daily["screenshot_hours"]
-    rho = daily["reported_hours"].corr(daily["screenshot_hours"], method="spearman")
+    r_val = daily["reported_hours"].corr(daily["screenshot_hours"], method="pearson")
 
     st.write(
         "For respondents who supplied a screenshot, the typed answer can be compared with the "
@@ -129,7 +129,7 @@ if VALIDATION_PATH.exists():
     c1.metric("Pairs compared", len(val))
     c2.metric("Within 1 hour", f"{(daily['error'].abs() <= 1).mean():.0%}",
               help="Share of daily-range answers within one hour of the screenshot")
-    c3.metric("Rank correlation", f"{rho:.2f}")
+    c3.metric("Correlation (r)", f"{r_val:.2f}")
     c4.metric("Weekly totals typed", len(weekly_sized), help="Answers above 24 hours, i.e. a weekly total")
 
     fig = px.scatter(
@@ -144,7 +144,7 @@ if VALIDATION_PATH.exists():
 
     st.info(
         f"Among the {len(daily)} daily-range answers, typed values track the screenshots closely "
-        f"(rank correlation {rho:.2f}, mean error {daily['error'].mean():+.2f} hrs, median "
+        f"(Pearson's r = {r_val:.2f}, mean error {daily['error'].mean():+.2f} hrs, median "
         f"{daily['error'].median():+.2f}). {len(weekly_sized)} respondents typed weekly totals "
         f"(for example {', '.join(weekly_sized['reported_text'].head(3))}) because the question said "
         "'per week'; for verified respondents these were replaced by the screenshot value. Unverified "
@@ -220,8 +220,29 @@ st.markdown(
 - **Unusual ages.** {n_minor} respondents are under 18, which is unexpected for university students.
 - **Association, not causation.** The analysis is cross-sectional, so it cannot show that
   screen time causes any change in academic performance.
-- **Multiple tests.** Many hypothesis tests are run across the dashboard; an isolated
-  p-value just below 0.05 may arise by chance.
+- **Multiple tests.** Many hypothesis tests are run across the dashboard. Each test at the 5%
+  level has a 5% chance of a false positive (a Type I error), so an isolated p-value just below
+  0.05 may arise by chance.
+- **Small groups and power.** With small groups, a real but modest difference may not reach
+  significance (a Type II error), so "not significant" does not prove there is no difference.
+"""
+)
+
+# ----------------------------------------------------------------------------
+st.subheader("Statistical Methods")
+st.markdown(
+    """
+- **Pearson's correlation (r)** measures how strongly two numeric variables move together in a
+  straight line, from -1 to +1. Its p-value tests whether r differs from zero. Ordered answers
+  (1-5 ratings, and the sleep and study bands coded 0, 1, 2, 3) are treated as numbers.
+- **One-way ANOVA** compares the average of a variable across three or more groups (for example
+  academic years) using an F-test. Groups with fewer than 5 students are left out.
+- **Multiple linear regression** estimates each factor's link with CGPA while holding the others
+  constant. Each coefficient is tested with a t-test.
+- **Significance level.** A result is called statistically significant when p < 0.05. Because
+  screen time includes some very high answers, key results are also repeated without the
+  14+ hrs/day reports and with screenshot-verified answers only (see **Robustness & Drivers**).
+- **Box plots** show the median (line), the middle 50% of answers (box) and outliers (dots).
 """
 )
 

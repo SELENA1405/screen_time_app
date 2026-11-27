@@ -5,25 +5,23 @@ phrase is computed from the data, so the text cannot drift from the analysis."""
 import streamlit as st
 
 from utils import (
-    load_data, load_raw_data, spearman, kruskal_test, robustness_table,
+    load_data, load_raw_data, pearson, anova_with_check, robustness_table,
     cgpa_drivers, cgpa_regression, collection_period, fmt_p,
-    HIGH_SCREEN_TIME_HOURS,
+    ALPHA, HIGH_SCREEN_TIME_HOURS,
 )
 
 df = load_data()
 raw = load_raw_data()
-
-ALPHA = 0.05
-
 
 def join_words(items, conj):
     """['a', 'b', 'c'] -> 'a, b or c'."""
     items = list(items)
     return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} {conj} {items[-1]}"
 
+
 screen = df["avg_screen_time_hours"]
 verified = df[df["Screen_Time_Confidence"] == "Verified"]
-rho_c, p_c, n_c = spearman(df, "avg_screen_time_hours", "cgpa")
+r_c, p_c, n_c = pearson(df, "avg_screen_time_hours", "cgpa")
 
 # ----------------------------------------------------------------------------
 # Header
@@ -45,20 +43,20 @@ st.write("")
 if p_c >= ALPHA:
     st.info(
         f"**Short answer: no.** In this sample, students who spend more time on screens do "
-        f"not have noticeably lower CGPAs (ρ = {rho_c:.2f}, {fmt_p(p_c)}). The result holds "
+        f"not have noticeably lower CGPAs (r = {r_c:.2f}, {fmt_p(p_c)}). The result holds "
         "in every robustness check."
     )
 else:
     st.info(
         f"**Short answer:** screen time and CGPA show a statistically significant "
-        f"{'negative' if rho_c < 0 else 'positive'} association (ρ = {rho_c:.2f}, {fmt_p(p_c)})."
+        f"{'negative' if r_c < 0 else 'positive'} association (r = {r_c:.2f}, {fmt_p(p_c)})."
     )
 
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Students analysed", len(df), help=f"{len(raw)} survey responses before cleaning")
 c2.metric("Avg. daily screen time", f"{screen.mean():.1f} hrs")
 c3.metric("Average CGPA", f"{df['cgpa'].mean():.2f}")
-c4.metric("Screen time ↔ CGPA (ρ)", f"{rho_c:.2f}", help=f"Spearman, {fmt_p(p_c)}, n = {n_c}")
+c4.metric("Screen time ↔ CGPA (r)", f"{r_c:.2f}", help=f"Pearson correlation, {fmt_p(p_c)}, n = {n_c}")
 
 st.divider()
 st.header("Answers to the research questions")
@@ -97,38 +95,56 @@ with st.container(border=True):
 # ----------------------------------------------------------------------------
 GROUPS = [("gender", "Gender"), ("year", "Academic year"),
           ("major_category", "Major category"), ("monthly_allowance", "Monthly allowance")]
-group_lines, sig_groups = [], []
+label_cols = {label: col for col, label in GROUPS}
+group_lines, sig_groups, fragile = [], [], []
 for col, label in GROUPS:
-    t = kruskal_test(df, col, "avg_screen_time_hours")
+    t = anova_with_check(df, col, "avg_screen_time_hours")
     means = df[df[col].isin(t["groups"])].groupby(col)["avg_screen_time_hours"].mean()
     lo, hi = means.idxmin(), means.idxmax()
-    is_sig = t["p"] < ALPHA
-    if is_sig:
+    if t["driven_by_high"]:
+        fragile.append((label, hi, t))
+        verdict = (f"significant, but not without the {HIGH_SCREEN_TIME_HOURS}+ hour answers "
+                   f"({fmt_p(t['p_without_high'])})")
+    elif t["p"] < ALPHA:
         sig_groups.append(label.lower())
+        verdict = "significant"
+    else:
+        verdict = "not significant"
     group_lines.append(
-        f"- **{label}:** from {means[lo]:.1f} hrs ({lo}) to {means[hi]:.1f} hrs ({hi}), "
-        f"{fmt_p(t['p'])}: {'significant' if is_sig else 'not significant'}."
+        f"- **{label}:** average from {means[lo]:.1f} hrs ({lo}) to {means[hi]:.1f} hrs ({hi}), "
+        f"{fmt_p(t['p'])}: {verdict}."
     )
-rho_a, p_a, _ = spearman(df, "age", "avg_screen_time_hours")
+r_a, p_a, _ = pearson(df, "age", "avg_screen_time_hours")
 
 with st.container(border=True):
     st.subheader("2. How does screen time differ across groups?")
     if sig_groups:
-        lead = f"Screen time differs significantly by **{', '.join(sig_groups)}**."
+        lead = f"Screen time differs significantly by **{join_words(sig_groups, 'and')}**."
+    elif fragile:
+        lead = ("**Screen time is broadly similar across gender, academic year, major and "
+                "allowance.**")
+        for label, hi, t in fragile:
+            n_high_hi = int(((df[label_cols[label]] == hi) & (screen >= HIGH_SCREEN_TIME_HOURS)).sum())
+            lead += (f" {label} looks significant at first ({fmt_p(t['p'])}, {hi} highest), but "
+                     f"{n_high_hi} of the {n_high} students reporting {HIGH_SCREEN_TIME_HOURS}+ hours "
+                     f"are in {hi}. Without them the difference disappears "
+                     f"({fmt_p(t['p_without_high'])}), so it is likely a Type I error (a false positive).")
     else:
         lead = ("**Screen time is about the same across gender, academic year, major and "
                 "allowance.** None of these differences is statistically significant.")
     if p_a < ALPHA:
         age_text = (f" The one clear pattern is **age**: older students report "
-                    f"**{'less' if rho_a < 0 else 'more'}** screen time "
-                    f"(ρ = {rho_a:.2f}, {fmt_p(p_a)}), a weak association.")
+                    f"**{'less' if r_a < 0 else 'more'}** screen time "
+                    f"(r = {r_a:.2f}, {fmt_p(p_a)}), a weak relationship.")
     else:
-        age_text = f" Age is not clearly related either (ρ = {rho_a:.2f}, {fmt_p(p_a)})."
+        age_text = f" Age is not clearly related either (r = {r_a:.2f}, {fmt_p(p_a)})."
     st.markdown(lead + age_text)
     st.markdown("\n".join(group_lines))
-    st.caption("Kruskal-Wallis tests of average daily screen time; groups with fewer than 5 "
-               "students (e.g. 'Other') are left out of the tests.")
-    st.page_link("pages/2_Demographics.py", label="See the Demographics page", icon=":material/arrow_forward:")
+    st.caption("One-way ANOVA on average daily screen time, repeated without the "
+               f"{HIGH_SCREEN_TIME_HOURS}+ hour answers; groups with fewer than 5 students "
+               "(e.g. 'Other') are left out of the tests.")
+    st.page_link("pages/3_Screen_Time.py", label="See the group comparisons on the Screen Time page",
+                 icon=":material/arrow_forward:")
 
 # ----------------------------------------------------------------------------
 # RQ3: screen time vs academic performance and lifestyle
@@ -141,34 +157,29 @@ LIFESTYLE = {
     "phone_during_lectures": "Phone use in lectures",
     "hard_to_reduce_screen_time": "Difficulty reducing screen time",
 }
-alpha_life = ALPHA / len(LIFESTYLE)
 life = []
 for col, label in LIFESTYLE.items():
-    rho, p, _ = spearman(df, "avg_screen_time_hours", col)
-    life.append((label, rho, p))
+    r, p, _ = pearson(df, "avg_screen_time_hours", col)
+    life.append((label, r, p))
 life_sig = [x for x in life if x[2] < ALPHA]
 life_ns = [x for x in life if x[2] >= ALPHA]
 
 with st.container(border=True):
     st.subheader("3. How does screen time relate to grades and lifestyle?")
     if p_c >= ALPHA:
-        st.markdown(f"**Screen time is not linked to CGPA** (ρ = {rho_c:.2f}, {fmt_p(p_c)}): "
+        st.markdown(f"**Screen time is not linked to CGPA** (r = {r_c:.2f}, {fmt_p(p_c)}): "
                     "heavy and light screen users have similar grades.")
     else:
         st.markdown(f"**Screen time is significantly associated with CGPA** "
-                    f"(ρ = {rho_c:.2f}, {fmt_p(p_c)}).")
+                    f"(r = {r_c:.2f}, {fmt_p(p_c)}).")
     lines = []
     if life_sig:
-        parts = "; ".join(f"{l.lower()} (ρ = {r:+.2f}, {fmt_p(p)})" for l, r, p in life_sig)
-        survives = [l for l, r, p in life_sig if p < alpha_life]
+        parts = "; ".join(f"{l.lower()} (r = {r:+.2f}, {fmt_p(p)})" for l, r, p in life_sig)
         lines.append(f"- Heavier screen users report more: {parts}.")
-        if survives:
-            kept = join_words([l.lower() for l in survives], "and")
-            lines.append(f"- These links are weak. After correcting for the {len(LIFESTYLE)} lifestyle "
-                         f"tests (p < {alpha_life:.4f}), only {kept} stays significant.")
-        else:
-            lines.append(f"- These links are weak, and none stays significant after correcting for "
-                         f"the {len(LIFESTYLE)} lifestyle tests (p < {alpha_life:.4f}).")
+        lines.append(f"- These links are weak (all |r| ≤ {max(abs(r) for _, r, _ in life_sig):.2f}). "
+                     f"With {len(LIFESTYLE)} tests at the 5% level, a result just under 0.05 could "
+                     "be a Type I error (a false positive), so the smallest p-values are the most "
+                     "convincing.")
     if life_ns:
         names = join_words([l.lower() for l, _, _ in life_ns], "or")
         lines.append(f"- No clear link with {names}.")
@@ -183,7 +194,7 @@ top = drivers.iloc[0]
 habits = drivers[~drivers["Variable"].isin(["academic_performance", "age"])]
 table, summary = cgpa_regression(df)
 coef = table[table["Term"] != "Intercept"]
-clear = coef[(coef["CI low"] > 0) | (coef["CI high"] < 0)]
+clear = coef[coef["p-value"] < ALPHA]
 BASELINES = {"major_category_": "Business & Management", "year_": "Year 1"}
 
 
@@ -202,13 +213,13 @@ with st.container(border=True):
         st.markdown(
             "**No everyday habit stands out.** Screen time, sleep, study hours, phone habits "
             f"and digital distraction each have only a very weak link with CGPA "
-            f"(all |ρ| ≤ {habits['ρ with CGPA'].abs().max():.2f}), and none is statistically significant."
+            f"(all |r| ≤ {habits['r with CGPA'].abs().max():.2f}), and none is statistically significant."
         )
     else:
         names = ", ".join(habits.loc[habits["Significant (p < 0.05)"], "Factor"])
         st.markdown(f"**Habits significantly associated with CGPA:** {names}.")
     lines = [f"- The strongest association is **{top['Factor'].lower()}** "
-             f"(ρ = {top['ρ with CGPA']:.2f}, {fmt_p(top['p-value'])})"
+             f"(r = {top['r with CGPA']:.2f}, {fmt_p(top['p-value'])})"
              + (": students' own rating of their grades, so it mostly shows they know how "
                 "they are doing rather than explaining their CGPA."
                 if top["Variable"] == "academic_performance" else ".")]
@@ -237,14 +248,14 @@ with st.container(border=True):
     if (robust["p-value"] >= ALPHA).all():
         st.markdown(
             f"**Yes.** Using only the {len(verified)} screenshot-verified responses, leaving out "
-            f"{HIGH_SCREEN_TIME_HOURS}+ hour reports, or both, gives the same answer: ρ stays between "
-            f"{robust['ρ'].min():.2f} and {robust['ρ'].max():.2f} and is never statistically significant."
+            f"{HIGH_SCREEN_TIME_HOURS}+ hour reports, or both, gives the same answer: r stays between "
+            f"{robust['r'].min():.2f} and {robust['r'].max():.2f} and is never statistically significant."
         )
     else:
         changed = ", ".join(robust.loc[robust["p-value"] < ALPHA, "Subset"])
         st.markdown(f"**Not entirely.** The result changes in: {changed}. Interpret it with caution.")
     st.dataframe(
-        robust.drop(columns="Significant (p < 0.05)").style.format({"ρ": "{:.2f}", "p-value": "{:.3f}"}),
+        robust.drop(columns="Significant (p < 0.05)").style.format({"r": "{:.2f}", "p-value": "{:.3f}"}),
         width="stretch", hide_index=True,
     )
     st.page_link("pages/8_Robustness_And_Drivers.py", label="See the Robustness & Drivers page",

@@ -11,11 +11,13 @@ Originally a group project; rebuilt and extended independently as a solo portfol
 ## Key findings
 
 - Students report about 8 hours of screen time a day (median 7.7).
-- **No significant association between screen time and CGPA** (Spearman ρ = −0.12, p = 0.17).
-  The result holds when restricted to the 58 responses backed by a screenshot (ρ = −0.10, p = 0.44)
-  and when excluding respondents reporting 14+ hours a day (ρ = −0.10, p = 0.31).
-- Typed screen times track screenshots closely: among 44 verified respondents who gave a daily figure, 77% were within 1 hour (rank correlation 0.81). Five typed weekly totals because the survey said "per week".
-- Older students report slightly less screen time (ρ = −0.25, p = 0.004).
+- **No significant relationship between screen time and CGPA** (Pearson r = −0.13, p = 0.15).
+  The result holds when restricted to the 58 responses backed by a screenshot (r = −0.10, p = 0.46)
+  and when excluding respondents reporting 14+ hours a day (r = −0.10, p = 0.31).
+- Typed screen times track screenshots closely: among 44 verified respondents who gave a daily figure, 77% were within 1 hour (r = 0.69). Five typed weekly totals because the survey said "per week".
+- Older students report slightly less screen time (r = −0.25, p = 0.004).
+- Screen time looks higher in Year 1 (ANOVA p = 0.024), but this comes from the 14+ hour answers
+  (9 of 14 are Year 1 students); without them there is no difference (p = 0.82).
 - Sleep, study hours, phone use and digital distraction show no clear association with CGPA.
 - In a regression controlling for the other factors, STEM & Health Sciences students have lower
   CGPA than Business students (p = 0.007). This is exploratory because the group is small.
@@ -26,20 +28,20 @@ Originally a group project; rebuilt and extended independently as a solo portfol
 |---|---|
 | Home | Summary of findings, with an answer to each research question (computed from the data) |
 | Demographics | Sample profile: gender, age, year, major, allowance |
-| Screen Time | Usage patterns, phone habits, group comparisons with 95% CIs |
+| Screen Time | Usage patterns, phone habits, group comparisons (box plots and ANOVA) |
 | Academic Performance | CGPA distribution, study and sleep habits |
-| Relationships | Spearman correlations with a verified-only toggle |
-| Major Analysis | Group comparisons with Kruskal-Wallis tests |
+| Relationships | Pearson correlations with a verified-only toggle |
+| Major Analysis | Group comparisons with ANOVA |
 | Dataset & Methodology | Data collection, cleaning (150 → 129 responses), data dictionary, limitations, raw and cleaned data with CSV downloads |
 | Robustness & Drivers | Sensitivity checks, correlation heatmap, multiple regression |
 
 ## Methods
 
-- **Spearman rank correlation**, chosen because screen time and age contain extreme values.
-- **Kruskal-Wallis test** with epsilon-squared effect size for group differences.
-- **OLS regression** (numpy/scipy) with 95% confidence intervals.
-- **Sensitivity analysis**: verified-only and outlier-excluded subsets.
-- **Bonferroni adjustment** when ranking factors against CGPA.
+- **Pearson correlation** (r) with p-values, significance level 0.05.
+- **One-way ANOVA** (F-test) for differences between groups.
+- **Multiple linear regression** (numpy/scipy), with a t-test for each coefficient.
+- **Robustness checks**: key results repeated with verified-only answers and without 14+ hrs/day reports.
+- **Box plots** for comparing distributions between groups.
 
 ## Limitations
 

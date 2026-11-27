@@ -2,7 +2,8 @@ import plotly.express as px
 import streamlit as st
 
 from utils import (
-    load_data, mean_ci_plot, LIKERT_LABELS, YEAR_ORDER, HIGH_SCREEN_TIME_HOURS,
+    load_data, group_box_plot, anova_with_check, describe_anova,
+    LIKERT_LABELS, YEAR_ORDER, HIGH_SCREEN_TIME_HOURS,
 )
 
 st.title("Screen Time Dashboard")
@@ -83,34 +84,33 @@ likert_chart("phone_during_lectures", "Phone Use During Lectures")
 st.divider()
 st.header("Group Comparisons")
 st.caption(
-    "Dots show group means with 95% confidence intervals; n is shown in each label. "
-    "Very small groups have wide or missing intervals and should not be over-interpreted."
+    "Box plots: the line inside each box is the median, the box covers the middle 50% of "
+    "students, and dots are outliers; n is shown in each label. "
+    "Very small groups (e.g. n=1) show as a single line and should not be over-interpreted."
 )
 st.subheader("SIMPLE COMPARISONS")
 
 SCREEN_LABEL = {"avg_screen_time_hours": "Average Screen Time (hours)"}
 
 st.plotly_chart(
-    mean_ci_plot(df, "major", "avg_screen_time_hours", "Average Screen Time by Major",
-                 labels={**SCREEN_LABEL, "major": "Major"}, sort_desc=True, horizontal=True),
+    group_box_plot(df, "major", "avg_screen_time_hours", "Screen Time by Major",
+                   labels={**SCREEN_LABEL, "major": "Major"}, sort_by_median=True, horizontal=True),
     width="stretch",
 )
-st.plotly_chart(
-    mean_ci_plot(df, "major_category", "avg_screen_time_hours",
-                 "Average Screen Time by Major Category",
-                 labels={**SCREEN_LABEL, "major_category": "Major Category"}, sort_desc=True),
-    width="stretch",
-)
-st.plotly_chart(
-    mean_ci_plot(df, "year", "avg_screen_time_hours", "Average Screen Time by Academic Year",
-                 labels={**SCREEN_LABEL, "year": "Academic Year"}, order=YEAR_ORDER),
-    width="stretch",
-)
-st.plotly_chart(
-    mean_ci_plot(df, "gender", "avg_screen_time_hours", "Average Screen Time by Gender",
-                 labels={**SCREEN_LABEL, "gender": "Gender"}),
-    width="stretch",
-)
+
+for col, title, label, order in [
+    ("major_category", "Screen Time by Major Category", "Major Category", None),
+    ("year", "Screen Time by Academic Year", "Academic Year", YEAR_ORDER),
+    ("gender", "Screen Time by Gender", "Gender", None),
+]:
+    st.plotly_chart(
+        group_box_plot(df, col, "avg_screen_time_hours", title,
+                       labels={**SCREEN_LABEL, col: label}, order=order,
+                       sort_by_median=order is None),
+        width="stretch",
+    )
+    st.caption(describe_anova(anova_with_check(df, col, "avg_screen_time_hours"),
+                              "average screen time", f"{label.lower()} groups"))
 
 st.divider()
 st.subheader("COMPLEX COMPARISONS")
@@ -125,9 +125,9 @@ if filtered_df.empty:
     st.warning("No respondents match this filter.")
 else:
     st.plotly_chart(
-        mean_ci_plot(filtered_df, "major", "avg_screen_time_hours",
-                     f"Average Screen Time by Major ({selected_use}, n={len(filtered_df)})",
-                     labels={**SCREEN_LABEL, "major": "Major"}, sort_desc=True, horizontal=True),
+        group_box_plot(filtered_df, "major", "avg_screen_time_hours",
+                       f"Screen Time by Major ({selected_use}, n={len(filtered_df)})",
+                       labels={**SCREEN_LABEL, "major": "Major"}, sort_by_median=True, horizontal=True),
         width="stretch",
     )
 

@@ -18,10 +18,11 @@ st.markdown(
 
 st.header("Correlation Method")
 st.write(
-    "Spearman's rank correlation was used because the dataset contains extreme "
-    "observations in screen time and age that could disproportionately influence "
-    "Pearson's correlation. Spearman's correlation is less sensitive to extreme "
-    "values and evaluates whether variables have a monotonic relationship."
+    "Pearson's correlation coefficient (r) measures how strongly two variables move "
+    "together in a straight line, from -1 (perfect negative) to +1 (perfect positive). "
+    "The p-value tests whether r differs from zero; results with p < 0.05 are called "
+    "statistically significant. Pearson's r can be pulled by a few extreme values, so the "
+    "**Robustness & Drivers** page repeats the key result without the 14+ hrs/day answers."
 )
 
 df = load_data()
@@ -50,8 +51,8 @@ for x, y, heading, question, labels in [
      {"age": "Age", "avg_screen_time_hours": "Average Screen Time (Hours)"}),
 ]:
     st.divider()
-    rho, p, n = correlation_section(df, x, y, heading, question, labels)
-    results.append({"Relationship": heading, "ρ": rho, "p-value": p, "n": n,
+    r, p, n = correlation_section(df, x, y, heading, question, labels)
+    results.append({"Relationship": heading, "r": r, "p-value": p, "n": n,
                     "Significant (p < 0.05)": p < 0.05})
 
 # ----------------------------------------------------------------------------
@@ -61,7 +62,7 @@ st.divider()
 st.subheader("Summary of Relationships")
 summary = pd.DataFrame(results)
 st.dataframe(
-    summary.style.format({"ρ": "{:.2f}", "p-value": "{:.4f}"}),
+    summary.style.format({"r": "{:.2f}", "p-value": "{:.4f}"}),
     width="stretch", hide_index=True,
 )
 
@@ -73,7 +74,7 @@ lines = []
 if len(significant):
     for _, r in significant.iterrows():
         lines.append(f"- **{r['Relationship']}** was statistically significant "
-                     f"(ρ = {r['ρ']:.2f}, p = {r['p-value']:.4f}).")
+                     f"(r = {r['r']:.2f}, p = {r['p-value']:.4f}).")
 if len(not_significant):
     names = ", ".join(not_significant["Relationship"])
     lines.append(f"- Not statistically significant: {names}.")

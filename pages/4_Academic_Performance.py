@@ -2,7 +2,7 @@ import plotly.express as px
 import streamlit as st
 
 from utils import (
-    load_data, mean_ci_plot, kruskal_test,
+    load_data, group_box_plot, anova_test, describe_anova, ALPHA,
     STUDY_HOURS_ORDER, SLEEP_HOURS_ORDER, YEAR_ORDER,
 )
 
@@ -44,28 +44,27 @@ fig = px.histogram(df, x="cgpa", nbins=8, title="CGPA Distribution", labels={"cg
 fig.update_xaxes(range=[1.5, 4])
 st.plotly_chart(fig, width="stretch")
 
-st.caption("Dots show mean CGPA with 95% confidence intervals; n is shown in each label.")
-CGPA_LABEL = {"cgpa": "Average CGPA"}
-
-st.plotly_chart(
-    mean_ci_plot(df, "year", "cgpa", "Average CGPA by Academic Year",
-                 labels={**CGPA_LABEL, "year": "Academic Year"}, order=YEAR_ORDER),
-    width="stretch",
-)
-year_test = kruskal_test(df, "year", "cgpa")
 st.caption(
-    f"Kruskal-Wallis test across academic years: H = {year_test['H']:.2f}, "
-    f"p = {year_test['p']:.3f}, ε² = {year_test['eps2']:.3f}."
+    "Box plots: the line inside each box is the median, the box covers the middle 50% of "
+    "students, and dots are outliers; n is shown in each label."
 )
+CGPA_LABEL = {"cgpa": "CGPA"}
 
 st.plotly_chart(
-    mean_ci_plot(df, "major", "cgpa", "Average CGPA by Major",
-                 labels={**CGPA_LABEL, "major": "Major"}, sort_desc=True, horizontal=True),
+    group_box_plot(df, "year", "cgpa", "CGPA by Academic Year",
+                   labels={**CGPA_LABEL, "year": "Academic Year"}, order=YEAR_ORDER),
+    width="stretch",
+)
+st.caption(describe_anova(anova_test(df, "year", "cgpa"), "average CGPA", "academic years"))
+
+st.plotly_chart(
+    group_box_plot(df, "major", "cgpa", "CGPA by Major",
+                   labels={**CGPA_LABEL, "major": "Major"}, sort_by_median=True, horizontal=True),
     width="stretch",
 )
 st.plotly_chart(
-    mean_ci_plot(df, "major_category", "cgpa", "Average CGPA by Major Category",
-                 labels={**CGPA_LABEL, "major_category": "Major Category"}, sort_desc=True),
+    group_box_plot(df, "major_category", "cgpa", "CGPA by Major Category",
+                   labels={**CGPA_LABEL, "major_category": "Major Category"}, sort_by_median=True),
     width="stretch",
 )
 st.caption("See the Major Analysis page for a formal test of CGPA across major categories.")
@@ -110,18 +109,29 @@ share_by_year("sleep_hours", SLEEP_HOURS_ORDER,
 st.divider()
 st.subheader("CGPA BY STUDY AND SLEEP HABITS")
 st.plotly_chart(
-    mean_ci_plot(df, "study_hours_outside_class", "cgpa", "Average CGPA by Study Hours Outside Class",
-                 labels={**CGPA_LABEL, "study_hours_outside_class": "Study Hours"},
-                 order=STUDY_HOURS_ORDER),
+    group_box_plot(df, "study_hours_outside_class", "cgpa", "CGPA by Study Hours Outside Class",
+                   labels={**CGPA_LABEL, "study_hours_outside_class": "Study Hours"},
+                   order=STUDY_HOURS_ORDER),
     width="stretch",
 )
+study_test = anova_test(df, "study_hours_outside_class", "cgpa")
+st.caption(describe_anova(study_test, "average CGPA", "study-hour groups"))
+
 st.plotly_chart(
-    mean_ci_plot(df, "sleep_hours", "cgpa", "Average CGPA by Sleep Duration",
-                 labels={**CGPA_LABEL, "sleep_hours": "Sleep Duration"}, order=SLEEP_HOURS_ORDER),
+    group_box_plot(df, "sleep_hours", "cgpa", "CGPA by Sleep Duration",
+                   labels={**CGPA_LABEL, "sleep_hours": "Sleep Duration"}, order=SLEEP_HOURS_ORDER),
     width="stretch",
 )
-st.info(
-    "The confidence intervals overlap heavily, so there is no clear difference in "
-    "CGPA across study or sleep groups. The **Robustness & Drivers** page tests this "
-    "formally with correlations and a regression."
-)
+sleep_test = anova_test(df, "sleep_hours", "cgpa")
+st.caption(describe_anova(sleep_test, "average CGPA", "sleep groups"))
+
+significant = [name for name, t in [("study hours", study_test), ("sleep", sleep_test)] if t["p"] < ALPHA]
+if significant:
+    st.info(f"CGPA differs significantly by {' and '.join(significant)}. The **Robustness & "
+            "Drivers** page checks this with correlations and a regression.")
+else:
+    st.info(
+        "The boxes overlap heavily and neither ANOVA is significant, so there is no clear "
+        "difference in CGPA across study or sleep groups. The **Robustness & Drivers** page "
+        "checks this with correlations and a regression."
+    )

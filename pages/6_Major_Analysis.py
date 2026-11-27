@@ -2,7 +2,7 @@ import plotly.express as px
 import streamlit as st
 
 from utils import (
-    load_data, mean_ci_plot, kruskal_test,
+    load_data, anova_test, anova_with_check, describe_anova, ALPHA,
     STUDY_HOURS_ORDER, SLEEP_HOURS_ORDER,
 )
 
@@ -51,14 +51,11 @@ fig = px.box(
 )
 st.plotly_chart(fig, width="stretch")
 
-cgpa_test = kruskal_test(df, "major_category", "cgpa")
+cgpa_test = anova_test(df, "major_category", "cgpa")
 means = df[df["major_category"].isin(cgpa_test["groups"])].groupby("major_category")["cgpa"].mean()
-verdict = "a statistically significant" if cgpa_test["p"] < 0.05 else "no statistically significant"
 st.info(
-    f"**Kruskal-Wallis test** across {', '.join(cgpa_test['groups'])} "
-    f"(n = {cgpa_test['n']}): H = {cgpa_test['H']:.2f}, p = {cgpa_test['p']:.3f}, "
-    f"ε² = {cgpa_test['eps2']:.3f}. There is {verdict} difference in CGPA between "
-    f"categories. **{means.idxmin()}** has the lowest mean CGPA ({means.min():.2f}) and "
+    describe_anova(cgpa_test, "average CGPA", "major categories")
+    + f" **{means.idxmin()}** has the lowest average CGPA ({means.min():.2f}) and "
     f"**{means.idxmax()}** the highest ({means.max():.2f})."
 )
 
@@ -73,13 +70,8 @@ fig = px.box(
 )
 st.plotly_chart(fig, width="stretch")
 
-screen_test = kruskal_test(df, "major_category", "avg_screen_time_hours")
-verdict = "a statistically significant" if screen_test["p"] < 0.05 else "no statistically significant"
-st.info(
-    f"**Kruskal-Wallis test**: H = {screen_test['H']:.2f}, p = {screen_test['p']:.3f}, "
-    f"ε² = {screen_test['eps2']:.3f}. There is {verdict} difference in screen time "
-    "between major categories."
-)
+screen_test = anova_with_check(df, "major_category", "avg_screen_time_hours")
+st.info(describe_anova(screen_test, "average screen time", "major categories"))
 
 
 # ----------------------------------------------------------------------------
@@ -111,15 +103,21 @@ st.caption("Bars show the percentage within each major category, so categories o
 
 # ----------------------------------------------------------------------------
 st.header("Academic Performance by Major Category")
-st.caption("Academic performance is a self-rating from 1 to 5. Dots show means with 95% confidence intervals.")
-st.plotly_chart(
-    mean_ci_plot(df, "major_category", "academic_performance",
-                 "Average Self-Rated Academic Performance by Major Category",
-                 labels={"academic_performance": "Average Self-Rated Performance (1-5)",
-                         "major_category": "Major Category"},
-                 sort_desc=True),
-    width="stretch",
+st.caption("Academic performance is a self-rating from 1 to 5; n is shown in each label.")
+perf = (
+    df.groupby("major_category")["academic_performance"].agg(["mean", "size"])
+    .sort_values("mean", ascending=False).reset_index()
 )
+perf["label"] = perf["major_category"] + " (n=" + perf["size"].astype(str) + ")"
+fig = px.bar(
+    perf, x="label", y="mean", text=perf["mean"].round(2),
+    title="Average Self-Rated Academic Performance by Major Category",
+    labels={"label": "Major Category", "mean": "Average Self-Rated Performance (1-5)"},
+)
+fig.update_yaxes(range=[0, 5])
+st.plotly_chart(fig, width="stretch")
+perf_test = anova_test(df, "major_category", "academic_performance")
+st.caption(describe_anova(perf_test, "average self-rated performance", "major categories"))
 
 # ----------------------------------------------------------------------------
 st.header("Major Category Summary")
@@ -146,7 +144,7 @@ st.header("Overall Findings")
 
 
 def significance_phrase(p):
-    if p < 0.05:
+    if p < ALPHA:
         return "a statistically significant difference"
     if p < 0.10:
         return "a borderline difference that is suggestive but not conclusive"
@@ -155,9 +153,9 @@ def significance_phrase(p):
 
 st.write(
     f"Between major categories there is {significance_phrase(cgpa_test['p'])} in CGPA "
-    f"(Kruskal-Wallis p = {cgpa_test['p']:.3f}, effect size ε² = {cgpa_test['eps2']:.3f}) and "
-    f"{significance_phrase(screen_test['p'])} in screen time (p = {screen_test['p']:.3f}). "
-    "With groups this small, these tests have limited power to detect modest differences."
+    f"(ANOVA p = {cgpa_test['p']:.3f}) and {significance_phrase(screen_test['p'])} in screen "
+    f"time (ANOVA p = {screen_test['p']:.3f}). With groups this small, a real but modest "
+    "difference could be missed (a Type II error)."
 )
 st.caption(
     "Differences between major categories describe associations within this dataset "

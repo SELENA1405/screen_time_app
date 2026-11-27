@@ -87,15 +87,18 @@ def fmt_p(p: float) -> str:
 # ----------------------------------------------------------------------------
 # Statistics helpers
 # ----------------------------------------------------------------------------
-def spearman(df: pd.DataFrame, x: str, y: str):
-    """Spearman correlation on complete cases. Returns (rho, p, n)."""
+ALPHA = 0.05  # significance level used throughout
+
+
+def pearson(df: pd.DataFrame, x: str, y: str):
+    """Pearson correlation on complete cases. Returns (r, p, n)."""
     d = df[[x, y]].dropna()
-    rho, p = stats.spearmanr(d[x], d[y])
-    return float(rho), float(p), len(d)
+    r, p = stats.pearsonr(d[x].astype(float), d[y].astype(float))
+    return float(r), float(p), len(d)
 
 
-def strength_label(rho: float) -> str:
-    a = abs(rho)
+def strength_label(r: float) -> str:
+    a = abs(r)
     if a < 0.2:
         return "very weak"
     if a < 0.4:
@@ -105,27 +108,27 @@ def strength_label(rho: float) -> str:
     return "strong"
 
 
-def describe_correlation(rho: float, p: float, alpha: float = 0.05) -> str:
+def describe_correlation(r: float, p: float, alpha: float = ALPHA) -> str:
     """Plain-English interpretation generated from the numbers, so the text can
     never disagree with the statistics if the data changes."""
-    direction = "negative" if rho < 0 else "positive"
-    verdict = "was" if p < alpha else "was not"
-    if abs(rho) < 0.1:
-        lead = "There is almost no monotonic association"
+    direction = "negative" if r < 0 else "positive"
+    verdict = "is" if p < alpha else "is not"
+    if abs(r) < 0.1:
+        lead = "There is almost no linear relationship"
     else:
-        lead = f"There is a {strength_label(rho)} {direction} association"
+        lead = f"There is a {strength_label(r)} {direction} linear relationship"
     return (
-        f"{lead} (ρ = {rho:.2f}). The association {verdict} statistically "
-        f"significant (p = {p:.4f})."
+        f"{lead} (r = {r:.2f}). It {verdict} statistically significant at the 5% level "
+        f"({fmt_p(p)})."
     )
 
 
-def kruskal_test(df: pd.DataFrame, group: str, value: str, exclude=(), min_n: int = 5):
-    """Kruskal-Wallis test of `value` across the levels of `group`.
+def anova_test(df: pd.DataFrame, group: str, value: str, exclude=(), min_n: int = 5):
+    """One-way ANOVA: do the group means of `value` differ across `group`?
 
-    Groups with fewer than `min_n` observations (or listed in `exclude`) are
-    dropped because they are too small to say anything. Returns a dict with
-    H, p, epsilon-squared (effect size), n, the groups used and those dropped.
+    Groups with fewer than `min_n` people (or listed in `exclude`) are left out
+    because they are too small to say anything. Returns a dict with the F
+    statistic, p-value, n, the groups used and those left out.
     """
     d = df[[group, value]].dropna()
     d = d[~d[group].isin(exclude)]
@@ -133,19 +136,43 @@ def kruskal_test(df: pd.DataFrame, group: str, value: str, exclude=(), min_n: in
     keep = counts[counts >= min_n].index
     dropped = [g for g in counts.index if g not in keep]
     d = d[d[group].isin(keep)]
-    samples = [g[value].values for _, g in d.groupby(group)]
-    h, p = stats.kruskal(*samples)
-    n = len(d)
-    eps2 = h * (n + 1) / (n**2 - 1)
-    return {"H": float(h), "p": float(p), "eps2": float(eps2), "n": n,
+    samples = [g[value].astype(float).values for _, g in d.groupby(group)]
+    f, p = stats.f_oneway(*samples)
+    return {"F": float(f), "p": float(p), "n": len(d),
             "groups": sorted(keep), "dropped": dropped}
 
 
+def anova_with_check(df: pd.DataFrame, group: str, value: str):
+    """ANOVA on all respondents, repeated without the 14+ hrs/day screen-time
+    reports, so a result driven by a few extreme answers can be flagged."""
+    full = anova_test(df, group, value)
+    trimmed = anova_test(df[df["avg_screen_time_hours"] < HIGH_SCREEN_TIME_HOURS], group, value)
+    full["p_without_high"] = trimmed["p"]
+    # Significant overall, but not once the extreme answers are removed.
+    full["driven_by_high"] = full["p"] < ALPHA <= trimmed["p"]
+    return full
+
+
+def describe_anova(t: dict, what: str, between: str) -> str:
+    """One sentence reporting an ANOVA result (with the extreme-value check, if run)."""
+    text = (f"One-way ANOVA: F = {t['F']:.2f}, {fmt_p(t['p'])}. "
+            f"There {'is a' if t['p'] < ALPHA else 'is no'} statistically significant difference "
+            f"in {what} between {between}.")
+    if t.get("driven_by_high"):
+        text += (f" However, without the {HIGH_SCREEN_TIME_HOURS}+ hrs/day reports the difference "
+                 f"disappears ({fmt_p(t['p_without_high'])}), so it comes from a few very high answers "
+                 "and may be a Type I error (a false positive).")
+    if t["dropped"]:
+        text += f" Left out for having fewer than 5 people: {', '.join(t['dropped'])}."
+    return text
+
+
 def ols_table(df: pd.DataFrame, y: str, numeric: list, categorical: list):
-    """Ordinary least squares with 95% CIs, using only numpy/scipy.
+    """Multiple linear regression (ordinary least squares), using numpy/scipy.
 
     Categorical predictors are dummy-coded against their first level
-    (alphabetical). Returns (coefficient table, summary dict).
+    (alphabetical). Each coefficient's p-value comes from a t-test.
+    Returns (coefficient table, summary dict).
     """
     d = df[[y] + numeric + categorical].dropna()
     X = pd.get_dummies(d[numeric + categorical], columns=categorical,
@@ -160,26 +187,15 @@ def ols_table(df: pd.DataFrame, y: str, numeric: list, categorical: list):
     dof = n - k
     sigma2 = resid @ resid / dof
     se = np.sqrt(np.diag(sigma2 * np.linalg.inv(A.T @ A)))
-    t_vals = beta / se
-    p_vals = 2 * stats.t.sf(np.abs(t_vals), dof)
-    crit = stats.t.ppf(0.975, dof)
+    p_vals = 2 * stats.t.sf(np.abs(beta / se), dof)
 
     ss_tot = ((Y - Y.mean()) ** 2).sum()
     r2 = 1 - (resid @ resid) / ss_tot
-    adj_r2 = 1 - (1 - r2) * (n - 1) / dof
     f_stat = (r2 / (k - 1)) / ((1 - r2) / dof)
     f_p = stats.f.sf(f_stat, k - 1, dof)
 
-    table = pd.DataFrame({
-        "Term": X.columns,
-        "Coefficient": beta,
-        "Std. error": se,
-        "CI low": beta - crit * se,
-        "CI high": beta + crit * se,
-        "p-value": p_vals,
-    })
-    summary = {"n": n, "r2": float(r2), "adj_r2": float(adj_r2),
-               "f_p": float(f_p)}
+    table = pd.DataFrame({"Term": X.columns, "Coefficient": beta, "p-value": p_vals})
+    summary = {"n": n, "r2": float(r2), "f_p": float(f_p)}
     return table, summary
 
 
@@ -204,7 +220,7 @@ REGRESSION_TERM_LABELS = {
 
 
 def robustness_table(df: pd.DataFrame) -> pd.DataFrame:
-    """Screen time vs CGPA (Spearman) repeated on progressively stricter subsets."""
+    """Screen time vs CGPA (Pearson) repeated on progressively stricter subsets."""
     verified = df["Screen_Time_Confidence"] == "Verified"
     plausible = df["avg_screen_time_hours"] < HIGH_SCREEN_TIME_HOURS
     scenarios = {
@@ -215,29 +231,27 @@ def robustness_table(df: pd.DataFrame) -> pd.DataFrame:
     }
     rows = []
     for name, subset in scenarios.items():
-        rho, p, n = spearman(subset, "avg_screen_time_hours", "cgpa")
-        rows.append({"Subset": name, "n": n, "ρ": rho, "p-value": p,
-                     "Significant (p < 0.05)": p < 0.05})
+        r, p, n = pearson(subset, "avg_screen_time_hours", "cgpa")
+        rows.append({"Subset": name, "n": n, "r": r, "p-value": p,
+                     "Significant (p < 0.05)": p < ALPHA})
     return pd.DataFrame(rows)
 
 
 def cgpa_drivers(df: pd.DataFrame) -> pd.DataFrame:
-    """Spearman correlation of each factor with CGPA, strongest first."""
+    """Pearson correlation of each factor with CGPA, strongest first."""
     rows = []
     for v in DRIVER_VARIABLES[:-1]:
-        rho, p, n = spearman(df, v, "cgpa")
-        rows.append({"Variable": v, "Factor": VARIABLE_LABELS[v], "ρ with CGPA": rho, "p-value": p})
+        r, p, n = pearson(df, v, "cgpa")
+        rows.append({"Variable": v, "Factor": VARIABLE_LABELS[v], "r with CGPA": r, "p-value": p})
     drivers = pd.DataFrame(rows)
-    drivers = drivers.reindex(drivers["ρ with CGPA"].abs().sort_values(ascending=False).index)
+    drivers = drivers.reindex(drivers["r with CGPA"].abs().sort_values(ascending=False).index)
     drivers = drivers.reset_index(drop=True)
-    alpha_adj = 0.05 / len(drivers)
-    drivers["Significant (p < 0.05)"] = drivers["p-value"] < 0.05
-    drivers[f"Significant after Bonferroni (p < {alpha_adj:.4f})"] = drivers["p-value"] < alpha_adj
+    drivers["Significant (p < 0.05)"] = drivers["p-value"] < ALPHA
     return drivers
 
 
 def cgpa_regression(df: pd.DataFrame):
-    """OLS of CGPA on habits, age, year and major category ('Other' major excluded)."""
+    """Regression of CGPA on habits, age, year and major category ('Other' major excluded)."""
     reg_df = df[df["major_category"] != "Other"]
     table, summary = ols_table(
         reg_df, "cgpa",
@@ -251,35 +265,32 @@ def cgpa_regression(df: pd.DataFrame):
 # ----------------------------------------------------------------------------
 # Chart helpers
 # ----------------------------------------------------------------------------
-def mean_ci_table(df, group, value, order=None, sort_desc=False):
-    """Mean, SD, n and 95% CI half-width of `value` per level of `group`."""
-    g = df.groupby(group)[value].agg(["mean", "std", "count"]).reset_index()
-    sem = g["std"] / np.sqrt(g["count"])
-    crit = stats.t.ppf(0.975, (g["count"] - 1).clip(lower=1))
-    g["ci"] = np.where(g["count"] > 1, crit * sem, np.nan)
+def group_box_plot(df, group, value, title, labels=None, order=None,
+                   sort_by_median=False, horizontal=False):
+    """Box plot of `value` for each level of `group`, with the group size in
+    each label. The line in the box is the median, the box covers the middle
+    50% of answers, and dots beyond the whiskers are outliers."""
+    d = df[[group, value]].dropna().copy()
+    counts = d[group].value_counts()
     if order is not None:
-        g[group] = pd.Categorical(g[group], categories=order, ordered=True)
-        g = g.sort_values(group).dropna(subset=[group])
-        g[group] = g[group].astype(str)
-    elif sort_desc:
-        g = g.sort_values("mean", ascending=False)
-    g["label"] = g[group].astype(str) + " (n=" + g["count"].astype(str) + ")"
-    return g
-
-
-def mean_ci_plot(df, group, value, title, labels=None, order=None,
-                 sort_desc=False, horizontal=False):
-    """Dot-and-whisker chart: group means with 95% confidence intervals and the
-    group size in each label. Honest about small groups (n=1 has no whisker)."""
-    g = mean_ci_table(df, group, value, order=order, sort_desc=sort_desc)
-    labels = dict(labels or {})
-    labels.update({"mean": labels.get(value, value), "label": labels.get(group, group)})
-    if horizontal:
-        fig = px.scatter(g, x="mean", y="label", error_x="ci", title=title, labels=labels)
-        fig.update_yaxes(categoryorder="array", categoryarray=list(g["label"])[::-1])
+        levels = [g for g in order if g in counts.index]
+    elif sort_by_median:
+        levels = list(d.groupby(group)[value].median().sort_values(ascending=False).index)
     else:
-        fig = px.scatter(g, x="label", y="mean", error_y="ci", title=title, labels=labels)
-    fig.update_traces(marker=dict(size=11))
+        levels = sorted(counts.index)
+    d = d[d[group].isin(levels)]
+    names = {g: f"{g} (n={counts[g]})" for g in levels}
+    d["label"] = d[group].map(names)
+    cat_order = [names[g] for g in levels]
+    labels = dict(labels or {})
+    labels["label"] = labels.get(group, group)
+    if horizontal:
+        fig = px.box(d, x=value, y="label", title=title, labels=labels,
+                     category_orders={"label": cat_order})
+        fig.update_layout(height=max(400, 32 * len(levels) + 150))
+    else:
+        fig = px.box(d, x="label", y=value, title=title, labels=labels,
+                     category_orders={"label": cat_order})
     return fig
 
 
@@ -295,19 +306,19 @@ def scatter_with_trend(d, x, y, title, labels):
 
 
 def correlation_section(df, x, y, heading, question, labels):
-    """Render one Spearman analysis (metrics, scatter plot, interpretation)
-    and return (rho, p, n)."""
+    """Render one Pearson correlation (metrics, scatter plot, interpretation)
+    and return (r, p, n)."""
     st.subheader(heading)
     st.write(question)
     d = df[[x, y]].dropna()
-    rho, p, n = spearman(d, x, y)
+    r, p, n = pearson(d, x, y)
 
     c1, c2, c3 = st.columns(3)
-    c1.metric("Spearman's ρ", f"{rho:.2f}")
+    c1.metric("Pearson's r", f"{r:.2f}")
     c2.metric("p-value", f"{p:.4f}")
     c3.metric("Sample size", n)
 
     st.plotly_chart(scatter_with_trend(d, x, y, heading, labels),
                     width="stretch")
-    st.info("**Interpretation**\n\n" + describe_correlation(rho, p))
-    return rho, p, n
+    st.info("**Interpretation**\n\n" + describe_correlation(r, p))
+    return r, p, n
