@@ -4,6 +4,8 @@ An interactive Streamlit dashboard that asks whether daily screen time is associ
 academic performance (CGPA) among 129 university students, alongside sleep, study habits,
 and digital distraction.
 
+**Live app:** https://screen-time-vs-academic-performance.streamlit.app/
+
 Originally a group project; rebuilt and extended independently as a solo portfolio project.
 
 ## Key findings
