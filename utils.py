@@ -322,3 +322,43 @@ def correlation_section(df, x, y, heading, question, labels):
                     width="stretch")
     st.info("**Interpretation**\n\n" + describe_correlation(r, p))
     return r, p, n
+
+
+# ----------------------------------------------------------------------------
+# Page layout helpers, so every page follows the same structure:
+# title + intro, key takeaways, key numbers, tabbed sections, next-page link.
+# ----------------------------------------------------------------------------
+PAGE_ORDER = [
+    ("pages/1_Home.py", "Home"),
+    ("pages/2_Demographics.py", "Demographics"),
+    ("pages/3_Screen_Time.py", "Screen Time"),
+    ("pages/4_Academic_Performance.py", "Academic Performance"),
+    ("pages/5_Relationships.py", "Relationships"),
+    ("pages/6_Major_Analysis.py", "Major Analysis"),
+    ("pages/7_Dataset_And_Methodology.py", "Dataset & Methodology"),
+    ("pages/8_Robustness_And_Drivers.py", "Robustness & Drivers"),
+]
+
+
+def page_intro(title: str, intro: str):
+    """Page title (matching the sidebar) and a one-line description."""
+    st.title(title)
+    st.markdown(intro)
+
+
+def takeaways(points):
+    """'Key takeaways' box shown at the top of each page."""
+    st.info("**Key takeaways**\n\n" + "\n".join(f"- {p}" for p in points),
+            icon=":material/lightbulb:")
+
+
+def next_page(current: str):
+    """Link to the next page in the sidebar order (or back to Home on the last page)."""
+    paths = [p for p, _ in PAGE_ORDER]
+    i = paths.index(current)
+    st.divider()
+    if i + 1 < len(PAGE_ORDER):
+        path, title = PAGE_ORDER[i + 1]
+        st.page_link(path, label=f"Next: {title}", icon=":material/arrow_forward:")
+    else:
+        st.page_link("pages/1_Home.py", label="Back to Home", icon=":material/home:")

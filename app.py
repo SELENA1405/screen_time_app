@@ -9,7 +9,7 @@ import streamlit as st
 st.set_page_config(page_title="Student Screen Time & Academic Performance")
 
 pages = [
-    st.Page("home.py", title="Home", default=True),
+    st.Page("pages/1_Home.py", title="Home", default=True),
     st.Page("pages/2_Demographics.py", title="Demographics", url_path="Demographics"),
     st.Page("pages/3_Screen_Time.py", title="Screen Time", url_path="Screen_Time"),
     st.Page("pages/4_Academic_Performance.py", title="Academic Performance",

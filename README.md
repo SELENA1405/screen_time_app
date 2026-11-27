@@ -60,9 +60,9 @@ streamlit run app.py
 
 ```
 app.py              Entry point: sidebar navigation (run this file)
-home.py             Home page: summary of findings and answers to the research questions
+pages/1_Home.py     Home page: summary of findings and answers to the research questions
 utils.py            Data loading, ordering constants, statistics and chart helpers
-pages/              One file per dashboard page
+pages/              One file per dashboard page (2-8)
 Data/Screen_Time_Data.xlsx        Survey data with screenshot links removed
                                   - OgData_Screenshot_Removed: 150 raw survey responses
                                   - CleanedData_Screenshot_Removed: 129 cleaned rows used by the app
