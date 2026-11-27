@@ -4,7 +4,21 @@ Run with `streamlit run app.py`. Each page lives in its own file; the URL paths
 are fixed so existing links to individual pages keep working.
 """
 
+import importlib
+import sys
+from pathlib import Path
+
 import streamlit as st
+
+# Streamlit re-reads page files on every run, but keeps imported modules such as
+# utils.py in memory. After a git push, Streamlit Cloud can therefore run new pages
+# against the old utils.py (ImportError). Reload utils whenever its file changes.
+_utils = sys.modules.get("utils")
+if _utils is not None and getattr(_utils, "__file__", None):
+    _mtime = Path(_utils.__file__).stat().st_mtime
+    if getattr(_utils, "_loaded_mtime", None) != _mtime:
+        _utils = importlib.reload(_utils)
+        _utils._loaded_mtime = _mtime
 
 st.set_page_config(page_title="Student Screen Time & Academic Performance")
 
