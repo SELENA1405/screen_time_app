@@ -5,7 +5,7 @@ import streamlit as st
 
 from utils import (
     load_data, pearson, correlation_section, fmt_p, strength_label, page_intro, takeaways, next_page,
-    main_use_correlations, heavy_vs_light, anova_test, describe_anova, group_box_plot,
+    main_use_correlations, heavy_vs_light, with_use_group, anova_test, describe_anova, group_box_plot,
     ALPHA, HIGH_SCREEN_TIME_HOURS,
 )
 
@@ -56,10 +56,7 @@ verified_only = st.checkbox(
 if verified_only:
     df = df[df["Screen_Time_Confidence"] == "Verified"]
 
-# Studying/academic work and work have too few students to test on their own,
-# so they are combined into one "Study & work" group for the main-use analysis.
-COMBINED = {"Studying/Academic work": "Study & work", "Work": "Study & work"}
-df = df.assign(use_group=df["main_use"].replace(COMBINED))
+df = with_use_group(df)  # study and work combined into one "Study & work" group
 
 PAIRS = [
     ("avg_screen_time_hours", "cgpa", "Screen Time vs CGPA",

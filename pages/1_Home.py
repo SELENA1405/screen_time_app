@@ -7,6 +7,7 @@ import streamlit as st
 from utils import (
     load_data, load_raw_data, pearson, anova_with_check, robustness_table,
     cgpa_drivers, cgpa_regression, collection_period, fmt_p,
+    main_use_correlations, with_use_group,
     ALPHA, HIGH_SCREEN_TIME_HOURS,
 )
 
@@ -73,6 +74,11 @@ for col, label in LIFESTYLE.items():
 life_sig = [x for x in life if x[2] < ALPHA]
 life_ns = [x for x in life if x[2] >= ALPHA]
 
+# RQ3 (continued): screen time vs CGPA within each main-use group
+by_use = main_use_correlations(with_use_group(df), "use_group")
+use_sig = by_use[by_use["Significant (p < 0.05)"]]
+use_strongest = by_use.loc[by_use["r"].abs().idxmax()] if len(by_use) else None
+
 # RQ4: what is most associated with CGPA
 drivers = cgpa_drivers(df)
 top = drivers.iloc[0]
@@ -115,6 +121,11 @@ else:
 if p_a < ALPHA:
     short[2] += f" Older students use screens slightly {'less' if r_a < 0 else 'more'}."
 short[3] = ("**Not linked to CGPA.**" if p_c >= ALPHA else "**Significantly linked to CGPA.**")
+if len(by_use):
+    short[3] += (" This is true within every main-use group, including social media."
+                 if use_sig.empty else
+                 " Within main-use groups, screen time is linked to CGPA for "
+                 + join_words(list(use_sig["Main use"]), "and") + ".")
 if life_sig:
     short[3] += " Heavier users report more " + join_words([l.lower() for l, _, _ in life_sig], "and") + "."
 if habits["Significant (p < 0.05)"].any():
@@ -250,6 +261,20 @@ with tabs[2]:
                      "convincing.")
     if life_ns:
         lines.append(f"- No clear link with {join_words([l.lower() for l, _, _ in life_ns], 'or')}.")
+    if len(by_use):
+        groups = "; ".join(f"{r['Main use']}: r = {r['r']:+.2f}, n = {r['n']}" for _, r in by_use.iterrows())
+        if use_sig.empty:
+            lines.append(
+                "- **By main use:** within no group is screen time significantly linked to CGPA "
+                f"({groups}). The strongest is {use_strongest['Main use']} "
+                f"({fmt_p(use_strongest['p-value'])}), but it is based on only {use_strongest['n']} "
+                "students, so it is a lead rather than a finding."
+            )
+        else:
+            lines.append("- **By main use:** screen time is significantly linked to CGPA for "
+                         + join_words(list(use_sig["Main use"]), "and") + f" ({groups}).")
+        lines.append("- The survey asked for total screen time and each student's main use, not hours "
+                     "per app, so this compares students by what they mainly use screens for.")
     st.markdown("\n".join(lines))
     st.page_link("pages/5_Relationships.py", label="Relationships page", icon=LINK)
 

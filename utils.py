@@ -262,6 +262,16 @@ def cgpa_regression(df: pd.DataFrame):
     return table, summary
 
 
+# Studying/academic work and work have too few students to test on their own,
+# so they are combined into one "Study & work" group for the main-use analysis.
+MAIN_USE_GROUPS = {"Studying/Academic work": "Study & work", "Work": "Study & work"}
+
+
+def with_use_group(df: pd.DataFrame) -> pd.DataFrame:
+    """Add a `use_group` column: main use, with study and work combined."""
+    return df.assign(use_group=df["main_use"].replace(MAIN_USE_GROUPS))
+
+
 def main_use_correlations(df: pd.DataFrame, group_col: str = "main_use", min_n: int = 5) -> pd.DataFrame:
     """Screen time vs CGPA (Pearson) within each main-use group with at least
     `min_n` students, also repeated without the 14+ hrs/day answers."""
