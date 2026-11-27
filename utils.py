@@ -223,6 +223,6 @@ def correlation_section(df, x, y, heading, question, labels):
     c3.metric("Sample size", n)
 
     st.plotly_chart(scatter_with_trend(d, x, y, heading, labels),
-                    use_container_width=True)
+                    width="stretch")
     st.info("**Interpretation**\n\n" + describe_correlation(rho, p))
     return rho, p, n

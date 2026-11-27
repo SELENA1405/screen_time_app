@@ -94,7 +94,7 @@ if VALIDATION_PATH.exists():
     top = float(max(daily["screenshot_hours"].max(), daily["reported_hours"].max()))
     fig.add_scatter(x=[0, top], y=[0, top], mode="lines", name="Perfect agreement",
                     line=dict(dash="dash", color="grey"))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     st.info(
         f"Among the {len(daily)} daily-range answers, typed values track the screenshots closely "
@@ -133,7 +133,7 @@ dictionary = pd.DataFrame(
     ],
     columns=["Column", "Description"],
 )
-st.dataframe(dictionary, use_container_width=True, hide_index=True)
+st.dataframe(dictionary, width="stretch", hide_index=True)
 
 # ----------------------------------------------------------------------------
 st.subheader("Limitations")
@@ -167,4 +167,4 @@ st.markdown(
 )
 
 st.subheader("Dataset Preview")
-st.dataframe(df, use_container_width=True)
+st.dataframe(df, width="stretch")

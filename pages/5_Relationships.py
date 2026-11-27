@@ -62,7 +62,7 @@ st.subheader("Summary of Relationships")
 summary = pd.DataFrame(results)
 st.dataframe(
     summary.style.format({"ρ": "{:.2f}", "p-value": "{:.4f}"}),
-    use_container_width=True, hide_index=True,
+    width="stretch", hide_index=True,
 )
 
 st.subheader("Overall Findings")

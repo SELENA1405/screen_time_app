@@ -42,7 +42,7 @@ robust = pd.DataFrame(rows)
 
 st.dataframe(
     robust.style.format({"ρ": "{:.2f}", "p-value": "{:.3f}"}),
-    use_container_width=True, hide_index=True,
+    width="stretch", hide_index=True,
 )
 
 fig = px.bar(
@@ -52,7 +52,7 @@ fig = px.bar(
 )
 fig.update_xaxes(range=[-0.5, 0.5])
 fig.update_yaxes(autorange="reversed")
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 
 if (robust["p-value"] >= 0.05).all():
     st.success(
@@ -83,7 +83,7 @@ fig = px.imshow(
     title="Spearman correlation matrix", aspect="auto",
 )
 fig.update_layout(height=650)
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 st.caption("Study and sleep are ordered bands (0 = lowest) so they can be ranked.")
 
 predictors = [v for v in variables if v != "cgpa"]
@@ -102,7 +102,7 @@ drivers[f"Significant after Bonferroni (p < {alpha_adj:.4f})"] = drivers["p-valu
 st.subheader("Factors ranked by strength of association with CGPA")
 st.dataframe(
     drivers.style.format({"ρ with CGPA": "{:.2f}", "p-value": "{:.3f}"}),
-    use_container_width=True, hide_index=True,
+    width="stretch", hide_index=True,
 )
 
 fig = px.bar(
@@ -111,7 +111,7 @@ fig = px.bar(
 )
 fig.update_yaxes(autorange="reversed")
 fig.update_xaxes(range=[-0.5, 0.5])
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 
 top = drivers.iloc[0]
 st.info(
@@ -159,7 +159,7 @@ st.dataframe(
         "Coefficient": "{:.3f}", "Std. error": "{:.3f}", "CI low": "{:.3f}",
         "CI high": "{:.3f}", "p-value": "{:.3f}",
     }),
-    use_container_width=True, hide_index=True,
+    width="stretch", hide_index=True,
 )
 
 coef = table[table["Term"] != "Intercept"]
@@ -171,7 +171,7 @@ fig = px.scatter(
 )
 fig.add_vline(x=0, line_dash="dash", line_color="grey")
 fig.update_yaxes(autorange="reversed")
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 
 model_sig = "is" if summary["f_p"] < 0.05 else "is not"
 clear = coef[(coef["CI low"] > 0) | (coef["CI high"] < 0)]

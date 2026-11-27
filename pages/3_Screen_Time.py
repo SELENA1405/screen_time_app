@@ -45,7 +45,7 @@ fig = px.histogram(
     title="Distribution of Daily Screen Time",
     labels={"avg_screen_time_hours": "Average Screen Time (hours)"},
 )
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 
 st.divider()
 st.subheader("USAGE PATTERNS")
@@ -58,7 +58,7 @@ def horizontal_counts(column, title, axis_label):
         labels={"count": "Participants", column: axis_label},
     )
     fig.update_yaxes(categoryorder="total ascending")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 horizontal_counts("main_use", "Main Uses of Screen Time", "Main Use")
@@ -74,7 +74,7 @@ def likert_chart(column, title):
         x=[LIKERT_LABELS[i] for i in counts.index], y=counts.values, title=title,
         labels={"x": "Frequency", "y": "Participants"},
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 likert_chart("check_phone_during_study", "Phone Checking During Study")
@@ -93,23 +93,23 @@ SCREEN_LABEL = {"avg_screen_time_hours": "Average Screen Time (hours)"}
 st.plotly_chart(
     mean_ci_plot(df, "major", "avg_screen_time_hours", "Average Screen Time by Major",
                  labels={**SCREEN_LABEL, "major": "Major"}, sort_desc=True, horizontal=True),
-    use_container_width=True,
+    width="stretch",
 )
 st.plotly_chart(
     mean_ci_plot(df, "major_category", "avg_screen_time_hours",
                  "Average Screen Time by Major Category",
                  labels={**SCREEN_LABEL, "major_category": "Major Category"}, sort_desc=True),
-    use_container_width=True,
+    width="stretch",
 )
 st.plotly_chart(
     mean_ci_plot(df, "year", "avg_screen_time_hours", "Average Screen Time by Academic Year",
                  labels={**SCREEN_LABEL, "year": "Academic Year"}, order=YEAR_ORDER),
-    use_container_width=True,
+    width="stretch",
 )
 st.plotly_chart(
     mean_ci_plot(df, "gender", "avg_screen_time_hours", "Average Screen Time by Gender",
                  labels={**SCREEN_LABEL, "gender": "Gender"}),
-    use_container_width=True,
+    width="stretch",
 )
 
 st.divider()
@@ -128,7 +128,7 @@ else:
         mean_ci_plot(filtered_df, "major", "avg_screen_time_hours",
                      f"Average Screen Time by Major ({selected_use}, n={len(filtered_df)})",
                      labels={**SCREEN_LABEL, "major": "Major"}, sort_desc=True, horizontal=True),
-        use_container_width=True,
+        width="stretch",
     )
 
 by_cat_use = (
@@ -146,5 +146,5 @@ fig = px.bar(
     },
 )
 fig.update_layout(legend_title="Main Use", height=500)
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 st.caption("Hover over a bar to see how many respondents it is based on; some combinations have only one or two.")

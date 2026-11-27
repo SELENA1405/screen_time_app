@@ -32,7 +32,7 @@ fig = px.bar(
     title="Number of Participants by Major Category",
     labels={"major_category": "Major Category", "participants": "Number of Participants"},
 )
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 
 small = counts[counts < 5]
 if len(small):
@@ -49,7 +49,7 @@ fig = px.box(
     title="CGPA Distribution by Major Category",
     labels={"major_category": "Major Category", "cgpa": "CGPA"},
 )
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 
 cgpa_test = kruskal_test(df, "major_category", "cgpa")
 means = df[df["major_category"].isin(cgpa_test["groups"])].groupby("major_category")["cgpa"].mean()
@@ -71,7 +71,7 @@ fig = px.box(
     title="Screen Time Distribution by Major Category",
     labels={"major_category": "Major Category", "avg_screen_time_hours": "Average Screen Time (Hours)"},
 )
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 
 screen_test = kruskal_test(df, "major_category", "avg_screen_time_hours")
 verdict = "a statistically significant" if screen_test["p"] < 0.05 else "no statistically significant"
@@ -97,7 +97,7 @@ def grouped_share(column, order, title, legend_label):
                 column: legend_label},
     )
     fig.update_layout(yaxis=dict(ticksuffix="%"))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 st.header("Sleep Hours by Major Category")
@@ -118,7 +118,7 @@ st.plotly_chart(
                  labels={"academic_performance": "Average Self-Rated Performance (1-5)",
                          "major_category": "Major Category"},
                  sort_desc=True),
-    use_container_width=True,
+    width="stretch",
 )
 
 # ----------------------------------------------------------------------------
@@ -139,7 +139,7 @@ summary = (
         "Average_Screen_Time": "Average Screen Time (Hours)",
     })
 )
-st.dataframe(summary.round(2), use_container_width=True, hide_index=True)
+st.dataframe(summary.round(2), width="stretch", hide_index=True)
 
 # ----------------------------------------------------------------------------
 st.header("Overall Findings")

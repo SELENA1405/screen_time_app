@@ -42,7 +42,7 @@ st.subheader("CGPA DISTRIBUTION")
 
 fig = px.histogram(df, x="cgpa", nbins=8, title="CGPA Distribution", labels={"cgpa": "CGPA"})
 fig.update_xaxes(range=[1.5, 4])
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 
 st.caption("Dots show mean CGPA with 95% confidence intervals; n is shown in each label.")
 CGPA_LABEL = {"cgpa": "Average CGPA"}
@@ -50,7 +50,7 @@ CGPA_LABEL = {"cgpa": "Average CGPA"}
 st.plotly_chart(
     mean_ci_plot(df, "year", "cgpa", "Average CGPA by Academic Year",
                  labels={**CGPA_LABEL, "year": "Academic Year"}, order=YEAR_ORDER),
-    use_container_width=True,
+    width="stretch",
 )
 year_test = kruskal_test(df, "year", "cgpa")
 st.caption(
@@ -61,12 +61,12 @@ st.caption(
 st.plotly_chart(
     mean_ci_plot(df, "major", "cgpa", "Average CGPA by Major",
                  labels={**CGPA_LABEL, "major": "Major"}, sort_desc=True, horizontal=True),
-    use_container_width=True,
+    width="stretch",
 )
 st.plotly_chart(
     mean_ci_plot(df, "major_category", "cgpa", "Average CGPA by Major Category",
                  labels={**CGPA_LABEL, "major_category": "Major Category"}, sort_desc=True),
-    use_container_width=True,
+    width="stretch",
 )
 st.caption("See the Major Analysis page for a formal test of CGPA across major categories.")
 
@@ -80,7 +80,7 @@ def category_counts(column, order, title, label):
         x=counts.index, y=counts.values, title=title, text=counts.values,
         labels={"x": label, "y": "Number of Participants"},
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 category_counts("study_hours_outside_class", STUDY_HOURS_ORDER,
@@ -99,7 +99,7 @@ def share_by_year(column, order, title, legend_label):
         labels={"year": "Academic Year", "Percentage": "Percentage of Participants", column: legend_label},
     )
     fig.update_layout(barmode="stack", yaxis=dict(range=[0, 100], ticksuffix="%"))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 share_by_year("study_hours_outside_class", STUDY_HOURS_ORDER,
@@ -113,12 +113,12 @@ st.plotly_chart(
     mean_ci_plot(df, "study_hours_outside_class", "cgpa", "Average CGPA by Study Hours Outside Class",
                  labels={**CGPA_LABEL, "study_hours_outside_class": "Study Hours"},
                  order=STUDY_HOURS_ORDER),
-    use_container_width=True,
+    width="stretch",
 )
 st.plotly_chart(
     mean_ci_plot(df, "sleep_hours", "cgpa", "Average CGPA by Sleep Duration",
                  labels={**CGPA_LABEL, "sleep_hours": "Sleep Duration"}, order=SLEEP_HOURS_ORDER),
-    use_container_width=True,
+    width="stretch",
 )
 st.info(
     "The confidence intervals overlap heavily, so there is no clear difference in "

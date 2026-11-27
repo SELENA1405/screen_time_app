@@ -49,7 +49,7 @@ def count_chart(column, title, order=None, horizontal=False):
     fig = px.bar(counts, title=title, text="Participants", **kwargs)
     if horizontal:
         fig.update_yaxes(categoryorder="total ascending")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 
 st.subheader("Gender Distribution")
@@ -57,7 +57,7 @@ count_chart("gender", "Gender Distribution")
 st.caption("The 'Other' group is very small, so gender comparisons elsewhere are mostly Male vs Female.")
 
 st.subheader("Age Distribution")
-st.plotly_chart(px.histogram(df, x="age", title="Age Distribution"), use_container_width=True)
+st.plotly_chart(px.histogram(df, x="age", title="Age Distribution"), width="stretch")
 
 st.subheader("Academic Year Distribution")
 count_chart("year", "Academic Year Distribution", order=YEAR_ORDER)
