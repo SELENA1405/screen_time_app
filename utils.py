@@ -262,6 +262,40 @@ def cgpa_regression(df: pd.DataFrame):
     return table, summary
 
 
+def main_use_correlations(df: pd.DataFrame, min_n: int = 5) -> pd.DataFrame:
+    """Screen time vs CGPA (Pearson) within each main-use group with at least
+    `min_n` students, also repeated without the 14+ hrs/day answers."""
+    rows = []
+    for use, g in df.dropna(subset=["avg_screen_time_hours", "cgpa"]).groupby("main_use"):
+        if len(g) < min_n:
+            continue
+        r, p, n = pearson(g, "avg_screen_time_hours", "cgpa")
+        trimmed = g[g["avg_screen_time_hours"] < HIGH_SCREEN_TIME_HOURS]
+        r2, p2 = (pearson(trimmed, "avg_screen_time_hours", "cgpa")[:2]
+                  if len(trimmed) >= min_n else (np.nan, np.nan))
+        rows.append({
+            "Main use": use, "n": n,
+            "Avg screen time (hrs)": g["avg_screen_time_hours"].mean(),
+            "Avg CGPA": g["cgpa"].mean(),
+            "r": r, "p-value": p, "Significant (p < 0.05)": p < ALPHA,
+            f"r without {HIGH_SCREEN_TIME_HOURS}+ hrs": r2,
+            f"p without {HIGH_SCREEN_TIME_HOURS}+ hrs": p2,
+        })
+    return pd.DataFrame(rows).sort_values("n", ascending=False).reset_index(drop=True)
+
+
+def heavy_vs_light(g: pd.DataFrame) -> dict:
+    """Split a group at its median screen time and compare the CGPA of heavier and
+    lighter users with a two-sample t-test (not assuming equal variances)."""
+    g = g.dropna(subset=["avg_screen_time_hours", "cgpa"])
+    median = g["avg_screen_time_hours"].median()
+    heavy = g.loc[g["avg_screen_time_hours"] > median, "cgpa"]
+    light = g.loc[g["avg_screen_time_hours"] <= median, "cgpa"]
+    t, p = stats.ttest_ind(heavy, light, equal_var=False)
+    return {"median": float(median), "heavy_mean": float(heavy.mean()), "light_mean": float(light.mean()),
+            "n_heavy": len(heavy), "n_light": len(light), "t": float(t), "p": float(p)}
+
+
 # ----------------------------------------------------------------------------
 # Chart helpers
 # ----------------------------------------------------------------------------

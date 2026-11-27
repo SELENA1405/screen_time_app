@@ -30,7 +30,7 @@ Originally a group project; rebuilt and extended independently as a solo portfol
 | Demographics | Sample profile: gender, age, year, major, allowance |
 | Screen Time | Usage patterns, phone habits, group comparisons (box plots and ANOVA) |
 | Academic Performance | CGPA distribution, study and sleep habits |
-| Relationships | Pearson correlations with a verified-only toggle |
+| Relationships | Pearson correlations with a verified-only toggle; screen time vs CGPA by main use (social media, streaming, gaming) |
 | Major Analysis | Group comparisons with ANOVA |
 | Dataset & Methodology | Data collection, cleaning (150 → 129 responses), data dictionary, limitations, raw and cleaned data with CSV downloads |
 | Robustness & Drivers | Sensitivity checks, correlation heatmap, multiple regression |
@@ -39,6 +39,7 @@ Originally a group project; rebuilt and extended independently as a solo portfol
 
 - **Pearson correlation** (r) with p-values, significance level 0.05.
 - **One-way ANOVA** (F-test) for differences between groups.
+- **Two-sample t-test** comparing heavier and lighter screen users within each main-use group.
 - **Multiple linear regression** (numpy/scipy), with a t-test for each coefficient.
 - **Robustness checks**: key results repeated with verified-only answers and without 14+ hrs/day reports.
 - **Box plots** for comparing distributions between groups.

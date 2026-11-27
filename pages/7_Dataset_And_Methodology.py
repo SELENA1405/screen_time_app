@@ -229,6 +229,8 @@ with tabs[3]:
     - **Pearson's correlation (r)** measures how strongly two numeric variables move together in a
       straight line, from -1 to +1. Its p-value tests whether r differs from zero. Ordered answers
       (1-5 ratings, and the sleep and study bands coded 0, 1, 2, 3) are treated as numbers.
+    - **Two-sample t-test** compares the average CGPA of two groups, used to compare heavier and
+      lighter screen users within a main-use group (without assuming equal variances).
     - **One-way ANOVA** compares the average of a variable across three or more groups (for example
       academic years) using an F-test. Groups with fewer than 5 students are left out.
     - **Multiple linear regression** estimates each factor's link with CGPA while holding the others
